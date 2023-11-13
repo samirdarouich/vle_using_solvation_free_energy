@@ -6,7 +6,7 @@ from emukit.model_wrappers.gpy_model_wrappers import GPyMultiOutputWrapper
 from emukit.multi_fidelity.models import GPyLinearMultiFidelityModel
 from emukit.multi_fidelity.convert_lists_to_array import convert_x_list_to_array
 from matplotlib.ticker import AutoMinorLocator
-from .utils import plot_data, work_json
+from tools.utils import plot_data, work_json
 
 class MF():
     

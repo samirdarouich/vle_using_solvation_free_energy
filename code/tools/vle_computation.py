@@ -1,5 +1,5 @@
 import numpy as np
-from .utils import plot_data
+from tools.utils import plot_data
 from scipy.interpolate import interp1d
 
 def compute_equilibrium_temperatures(x1,temperatures,y1,y1_std,settings,x_ref=[None],y_ref=[None],t_ref=[None]):

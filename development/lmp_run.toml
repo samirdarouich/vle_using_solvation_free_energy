@@ -1,0 +1,29 @@
+#name
+name="mix_ethanol_water"
+
+# path (contains ONE *)
+#path_jobs="lammps/ethanol_water/third_try/sim_lj_*/*.input"
+path_jobs="lammps/ethanol_water/test/*.input"
+# submit
+sub="PBS"
+submit="qsub"
+
+# queue
+q="short"
+
+# Nodes
+N=1
+
+# cpus per Node
+n=28
+
+# cores per cpu
+c=2
+
+# time (String hh:mm:ss)
+time="2:00:00"
+
+# job template
+path_job_template="/home/st/st_st/st_st163811/workspace/software/lammps_setup/template_binac_run.sh"
+mem = 3000
+

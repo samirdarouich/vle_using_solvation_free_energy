@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import interp1d
-from .utils import get_simulation_data, plot_data, trapezoid_integration, cubic_integration
-from .multi_fidelity import get_lf_training_data, prep_mf_input, MF
+from tools.utils import get_simulation_data, plot_data, trapezoid_integration, cubic_integration
+from tools.multi_fidelity import get_lf_training_data, prep_mf_input, MF
 
 def get_delta_fe(settings,print_out=False):
     """
