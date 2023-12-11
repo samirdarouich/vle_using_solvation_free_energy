@@ -1,0 +1,185 @@
+[atoms.cH_alkane]
+name = "cH_alkane"
+mass = 1.00784
+epsilon = 0.030
+sigma = 2.5
+m = 12.0
+cut = 12.0
+charge = 0.060
+style = "hybrid Mie/cut coul/long"
+
+[atoms.cH_alcohol]
+name = "cH_alcohol"
+mass = 1.00784
+epsilon = 0.0
+sigma = 1.0
+m = 12.0
+cut = 12.0
+charge = 0.418
+style = "hybrid Mie/cut coul/long"
+
+[atoms.cH_tip3p]
+name = "cH_tip3p"
+mass = 1.00784
+epsilon = 0.0
+sigma = 1.0
+m = 12.0
+cut = 12.0
+charge = 0.417
+style = "hybrid Mie/cut coul/long"
+
+[atoms.CH3_alkane]
+name = "CH3_alkane"
+mass = 12.011
+epsilon = 0.066
+sigma = 3.5
+m = 12.0
+cut = 12.0
+charge = -0.19
+style = "hybrid Mie/cut coul/long"
+
+[atoms.CH2_alcohol]
+name = "CH2_alcohol"
+mass = 12.011
+epsilon = 0.066
+sigma = 3.5
+m = 12.0
+cut = 12.0
+charge = 0.175
+style = "hybrid Mie/cut coul/long"
+
+[atoms.OH_alcohol]
+name = "OH_alcohol"
+mass = 15.9994
+epsilon = 0.17
+sigma = 3.12
+m = 12.0
+cut = 12.0
+charge = -0.703
+style = "hybrid Mie/cut coul/long"
+
+[atoms.OH_tip3p]
+name = "OH_tip3p"
+mass = 15.9994
+epsilon = 0.1521
+sigma = 3.15061
+m = 12.0
+cut = 12.0
+charge = -0.834
+style = "hybrid Mie/cut coul/long"
+
+[bonds."[OH_tip3p][cH_tip3p]"]
+list = [ "OH_tip3p", "cH_tip3p",]
+type = 1
+p = [ 0.9572, 450.0]
+style = "harmonic"
+
+[bonds."[CH3_alkane][cH_alkane]"]
+list = [ "CH3_alkane", "cH_alkane",]
+type = 1
+p = [ 1.09, 340.0]
+style = "harmonic"
+
+[bonds."[CH2_alcohol][CH3_alkane]"]
+list = [ "CH2_alcohol", "CH3_alkane",]
+type = 1
+p = [ 1.529, 268.0]
+style = "harmonic"
+
+[bonds."[CH2_alcohol][cH_alkane]"]
+list = [ "CH2_alcohol", "cH_alkane",]
+type = 1
+p = [ 1.09, 340.0]
+style = "harmonic"
+
+[bonds."[CH2_alcohol][OH_alcohol]"]
+list = [ "CH2_alcohol", "OH_alcohol",]
+type = 1
+p = [ 1.41, 320.0]
+style = "harmonic"
+
+[bonds."[OH_alcohol][cH_alcohol]"]
+list = [ "OH_alcohol", "cH_alcohol",]
+type = 1
+p = [ 0.945, 553.0]
+style = "harmonic"
+
+[angles."[cH_tip3p][OH_tip3p][cH_tip3p]"]
+list = [ "cH_tip3p", "OH_tip3p","cH_tip3p"]
+type = 1
+p = [ 104.52, 55.0]
+style = "harmonic"
+
+[angles."[cH_alkane][CH3_alkane][cH_alkane]"]
+list = [ "cH_alkane", "CH3_alkane","cH_alkane"]
+type = 1
+p = [ 107.8, 33.0]
+style = "harmonic"
+
+[angles."[cH_alkane][CH2_alcohol][cH_alkane]"]
+list = [ "cH_alkane", "CH2_alcohol","cH_alkane"]
+type = 1
+p = [ 107.8, 33.0]
+style = "harmonic"
+
+[angles."[OH_alcohol][CH2_alcohol][cH_alkane]"]
+list = [ "OH_alcohol","CH2_alcohol","cH_alkane"]
+type = 1
+p = [ 109.5, 35.0]
+style = "harmonic"
+
+[angles."[CH3_alkane][CH2_alcohol][cH_alkane]"]
+list = [ "CH3_alkane","CH2_alcohol","cH_alkane"]
+type = 1
+p = [ 110.7, 37.5]
+style = "harmonic"
+
+[angles."[CH2_alcohol][CH3_alkane][cH_alkane]"]
+list = [ "CH2_alcohol","CH3_alkane","cH_alkane"]
+type = 1
+p = [ 110.7, 37.5]
+style = "harmonic"
+
+[angles."[CH3_alkane][CH2_alcohol][OH_alcohol]"]
+list = [ "CH3_alkane", "CH2_alcohol","OH_alcohol"]
+type = 1
+p = [ 109.5, 50.0]
+style = "harmonic"
+
+[angles."[CH2_alcohol][OH_alcohol][cH_alcohol]"]
+list = [ "CH2_alcohol","OH_alcohol","cH_alcohol"]
+type = 1
+p = [ 108.5, 55.0]
+style = "harmonic"
+
+# First parameter of torsions i the constant term which is not used in LAMMPS, therefore first entry is simply a zero
+
+[torsions."[cH_alkane][CH2_alcohol][CH3_alkane][cH_alkane]"]
+list = [ "cH_alkane", "CH2_alcohol", "CH3_alkane", "cH_alkane",]
+type = 1
+p = [ 0.0, 0.0, 0.0, 0.300, 0.0,]
+style = "opls"
+
+[torsions."[OH_alcohol][CH2_alcohol][CH3_alkane][cH_alkane]"]
+list = [ "OH_alcohol", "CH2_alcohol", "CH3_alkane", "cH_alkane",]
+type = 1
+p = [ 0.0, 0.0, 0.0, 0.468, 0.0,]
+style = "opls"
+
+[torsions."[cH_alkane][CH2_alcohol][OH_alcohol][cH_alcohol]"]
+list = [ "cH_alkane", "CH2_alcohol", "OH_alcohol", "cH_alcohol",]
+type = 1
+p = [ 0.0, 0.0, 0.0, 0.352, 0.0,]
+style = "opls"
+
+[torsions."[cH_alcohol][OH_alcohol][CH2_alcohol][cH_alkane]"]
+list = [ "cH_alcohol", "OH_alcohol", "CH2_alcohol", "cH_alkane",]
+type = 1
+p = [ 0.0, 0.0, 0.0, 0.352, 0.0,]
+style = "opls"
+
+[torsions."[CH3_alkane][CH2_alcohol][OH_alcohol][cH_alcohol]"]
+list = [ "CH3_alkane", "CH2_alcohol", "OH_alcohol", "cH_alcohol",]
+type = 1
+p = [ 0.0, -0.356, -0.174, 0.492, 0.0,]
+style = "opls"

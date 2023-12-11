@@ -1,0 +1,4 @@
+{{atno}}
+{%for n,a in atoms %}
+{{n}}  {{a.0}}  {{a.1}}  {{a.2 -}}
+{% endfor %}

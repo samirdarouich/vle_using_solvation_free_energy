@@ -1,0 +1,87 @@
+LAMMPS data file
+# Generated via moleculegraph
+# Use if there are more then one bond style or dihedral style
+
+{{rd.atom_type_number}} atom types
+{{rd.bond_type_number}} bond types
+{{rd.angle_type_number}} angle types
+{{rd.torsion_type_number}} dihedral types
+
+{{rd.atom_number}} atoms
+{{rd.bond_number}} bonds
+{{rd.angle_number}} angles
+{{rd.torsion_number}} dihedrals
+
+{{rd.box_x.0}} {{rd.box_x.1}} xlo xhi
+{{rd.box_y.0}} {{rd.box_y.1}} ylo yhi
+{{rd.box_z.0}} {{rd.box_z.1}} zlo zhi
+
+Masses
+{% for n, p in rd.atom_paras %}
+{{n}} {{p.mass}} # {{p.name}}
+{%- endfor %}
+
+# Elements
+
+{%if rd.bond_styles|length > 0%}Bond Coeffs{%- endif %}
+{%- if rd.bond_styles|length > 1 %}
+{% for n, p in rd.bond_paras %}
+{{n}} {{p.style}} {{p.p.1}} {{p.p.0}} # {{p.list.0}} {{p.list.1}}
+{%- endfor %}
+{%- else %}
+{% for n, p in rd.bond_paras %}
+{{n}} {{p.p.1}} {{p.p.0}} # {{p.list.0}} {{p.list.1}}
+{%- endfor %}
+{%- endif %}
+
+{%if rd.angle_styles|length > 0%}Angle Coeffs{%- endif %}
+{%- if rd.angle_styles|length > 1 %}
+{% for n, p in rd.angle_paras %}
+{{n}} {{p.style}} {{p.p.1}} {{p.p.0}} # {{p.list.0}} {{p.list.1}} {{p.list.2}}
+{%- endfor %}
+{%- else %}
+{% for n, p in rd.angle_paras %}
+{{n}} {{p.p.1}} {{p.p.0}} # {{p.list.0}} {{p.list.1}} {{p.list.2}}
+{%- endfor %}
+{%- endif %}
+
+{%if rd.torsion_styles|length > 0%}Dihedral Coeffs{%- endif %}
+{%- if rd.torsion_styles|length > 1 %}
+{% for n, p in rd.torsion_paras %}
+{%- if p.p|length > 5 %}
+{{n}} {{p.style}} {{p.p|length-1}} {%- for a in p.p[:-1] %} {{a}} {%- endfor %} # {{p.list.0}} {{p.list.1}} {{p.list.2}} {{p.list.3}}
+{%- else %}
+{{n}} {{p.style}} {%- for a in p.p[1:-1] %} {{a}} {%- endfor %} 0.0 # {{p.list.0}} {{p.list.1}} {{p.list.2}} {{p.list.3}}
+{%- endif %}
+{%- endfor %}
+{%- else %}
+{% for n, p in rd.torsion_paras %}
+{{n}} {%- for a in p.p[1:-1] %} {{a}} {%- endfor %} 0.0 # {{p.list.0}} {{p.list.1}} {{p.list.2}} {{p.list.3}}
+{%- endfor %}
+{%- endif %}
+
+Atoms
+{% for a in rd.atoms %}
+{{a.0}} {{a.1}} {{a.2}} {{a.3}} {{a.4}} {{a.5}} {{a.6}} # {{a.7}}
+{%- endfor %}
+
+{% if rd.bonds %}
+Bonds
+{% for a in rd.bonds %}
+{{a.0}} {{a.1}} {{a.2}} {{a.3}} # {{a.4}} {{a.5}}
+{%- endfor %}
+{% endif %}
+
+{% if rd.angles %}
+Angles
+{% for a in rd.angles %}
+{{a.0}} {{a.1}} {{a.2}} {{a.3}} {{a.4}} # {{a.5}} {{a.6}} {{a.7}}
+{%- endfor %}
+{% endif %}
+
+{% if rd.torsions %}
+Dihedrals
+{% for a in rd.torsions %}
+{{a.0}} {{a.1}} {{a.2}} {{a.3}} {{a.4}} {{a.5}} # {{a.6}} {{a.7}} {{a.8}} {{a.9}}
+{%- endfor %}
+{% endif %}

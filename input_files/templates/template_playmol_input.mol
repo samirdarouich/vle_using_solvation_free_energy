@@ -1,0 +1,48 @@
+define rho as {{rho}}
+define seed as {{seed}}
+
+include {{rd.force_field}}
+
+# Definition of atoms
+# atoms force_field_type charge
+{% for no, na, c in rd.atoms %}
+atom  {{na}}{{no}}  {{na}} {{c}}
+{%- endfor %}
+
+# Definiton of covalent bonds. Playmol automatically detects angles and dihedrals.
+# bond A1 A2
+{% for n,bn in rd.bonds %}
+bond  {{bn.0}}{{n.0}}  {{bn.1}}{{n.1}}
+{%- endfor %}
+
+# Include the xyz structure of each component
+{% for xyz in rd.xyz %}
+build {{xyz}}
+{%- endfor %}
+
+# Box density in Da/AA³ ... with Da=Dalton, AA=Angstrom
+box density {0.602214*$rho}
+
+# Important: when the box density is specified, Playmol will 
+# automatically calculate the box side lengths when necessary. 
+# For this, it will sweep the whole list of molecular structures
+# defined via build and packmol commands in order to determine
+# the total mass of the system. Playmol will not perform any unit
+# conversion. Consequently, the specified density value must be
+# consistent with the mass and length units used in other commands. For 
+# instance, if LAMMPS real units are considered (mass in g/mol and lengths in AA),
+# then the density must be provided in Da/AA³ (Daltons per cubic Angstrom).
+# In this case, values originally in g/cm³ must be multiplied by 0.60221413.
+
+# Add the number of molecules per component
+
+packmol seed $seed retry 0.95
+{%- for n,mol in rd.mol %}
+{% if n != 0 %}packmol pack mol({{mol}}) {{n}}{% endif %}
+{%- endfor %}
+packmol action execute
+
+# Formatting and storage
+write    xyz {{rd.final_xyz}}
+write    summary {{rd.final_log}}
+

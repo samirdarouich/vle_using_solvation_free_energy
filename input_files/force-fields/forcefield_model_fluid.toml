@@ -1,0 +1,57 @@
+[atoms.LJ1]
+name = "LJ1"
+mass = 39.948
+epsilon = 0.23813
+sigma = 3.4098
+m = 12.0
+cut = 12.79
+charge = 0.0
+style = "hybrid Mie/cut coul/long"
+
+[atoms.LJ2]
+name = "LJ2"
+mass = 39.948
+epsilon = 0.17860
+sigma = 3.4098
+m = 12.0
+cut = 12.79
+charge = 0.0
+style = "hybrid Mie/cut coul/long"
+
+[atoms.MIE1]
+name = "MIE1"
+mass = 39.948
+epsilon = 0.23646
+sigma = 3.4098
+m = 10.0
+cut = 12.79
+charge = 0.0
+style = "hybrid Mie/cut coul/long"
+
+[atoms.MIE2]
+name = "MIE2"
+mass = 39.948
+epsilon = 0.23646
+sigma = 3.4098
+m = 24.0
+cut = 12.79
+charge = 0.0
+style = "hybrid Mie/cut coul/long"
+
+[bonds."[dummy][dummy]"]
+list = [ "dummy", "dummy",]
+type = 1
+p = [ 0.0, 0.0]
+style = "harmonic"
+
+[angles."[dummy][dummy][dummy]"]
+list = [ "dummy", "dummy","dummy"]
+type = 1
+p = [ 0.0, 0.0]
+style = "harmonic"
+
+[torsions."[dummy][dummy][dummy][dummy]"]
+list = [ "dummy", "dummy", "dummy", "dummy",]
+type = 1
+p = [ 0.0,0.0,0.0,0.0, 0.0,]
+style = "opls"

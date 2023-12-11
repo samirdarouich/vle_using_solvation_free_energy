@@ -1,0 +1,38 @@
+# Force field input for playmol
+
+# Atoms
+{% set seen = [] %}
+{%- for n, a in rd.nonbonded %}
+{%-if n not in seen%}
+atom_type {{n}}  mie/cut {{a.epsilon}} {{a.sigma}} {{a.m}} 6.0
+diameter {{n}}  {{a.sigma}}
+mass {{n}}  {{a.mass}}
+charge {{n}}  {{a.charge}}
+{{ seen.append(n) or ""}}
+{%-endif%}
+{%- endfor %}
+
+# Bonds
+{%- if rd.bonds %}
+{% for n, b in rd.bonds %}
+bond_type  {{n.0}}  {{n.1}}  {{b.style}}  {{b.p.1}}  {{b.p.0}}
+{%- endfor %}
+{% endif %}
+
+# Angles
+{%- if rd.angles %}
+{% for n, b in rd.angles %}
+angle_type {{n.0}} {{n.1}} {{n.2}} {{b.style}}  {{b.p.1}} {{b.p.0}} 
+{%- endfor %}
+{% endif %}
+
+# Torsions
+{%- if rd.torsions %}
+{% for n, p in rd.torsions %}
+{%- if p.p|length > 5 %}
+dihedral_type {{n.0}} {{n.1}} {{n.2}} {{n.3}} {{p.style}} {{p.p|length-1}} {%- for a in p.p[:-1] %} {{a}} {%- endfor %}
+{%- else %}
+dihedral_type {{n.0}} {{n.1}} {{n.2}} {{n.3}} {{p.style}} {%- for a in p.p[:-1] %} {{a}} {%- endfor %}
+{%- endif %}
+{%- endfor %}
+{% endif %}
