@@ -1,10 +1,10 @@
 #!/usr/bin/env python3.10
-#PBS -q short
+#PBS -q long
 #PBS -l nodes=1:ppn=1
-#PBS -l walltime=48:00:00
+#PBS -l walltime=96:00:00
 #PBS -j oe
 #PBS -N opt_intermediate_python
-#PBS -o /beegfs/work/st_163811/vle_using_solvation_free_energy/development/lammps/methanol_water/automated/LOG_python
+#PBS -o /beegfs/work/st_163811/vle_using_solvation_free_energy/development/lammps/butylamine_butylamine/adapted/LOG_python
 #PBS -l mem=1000mb
 
 import subprocess
@@ -17,11 +17,13 @@ import matplotlib.pyplot as plt
 
 # Appending path to find utils 
 sys.path.append("/beegfs/work/st_163811/vle_using_solvation_free_energy/development/") 
+sys.path.append("/beegfs/work/st_163811/vle_using_solvation_free_energy/")
 
-from utils_automated import change_inputfile, change_jobfile, trackJobs, get_mean_sim_data_lo, train_gpr, get_new_lambdas, get_partial_uncertanty, get_rmsd
+from tools.reader import get_dh_dl, get_data
+from utils_automated import change_inputfile, change_jobfile, trackJobs, train_gpr, get_new_lambdas, get_partial_uncertanty, get_rmsd
 
 # Define root 
-root = "/home/st/st_st/st_st163811/workspace/vle_using_solvation_free_energy/development/lammps/hexane_hexane/automated/"
+root = "/home/st/st_st/st_st163811/workspace/vle_using_solvation_free_energy/development/lammps/butylamine_butylamine/adapted/"
 
 ## Define logger ## 
 
@@ -48,7 +50,10 @@ logger.addHandler(file_handler)
 ## Initial setup ##
 
 # Define atom types of couple molecule 
-atom_list_coulped_molecule = [1,2]
+atom_list_coulped_molecule = [1,2,3,4,5]
+
+# Define numerical pertubation
+delta          = 0.001
 
 # Define minimum and maximum number of simulations
 N_min          = 10
@@ -58,7 +63,7 @@ N_max          = 15
 tolerance      = 0.3
 
 # Start with an initial simulation of the system
-l_init = [ 0.0, 0.5, 1.0]
+l_init = [ 0.0, 0.4, 1.0]
 
 # Define original input file for simulation setup
 
@@ -115,8 +120,9 @@ while N_sim <= N_max:
 
     # Gather simulation results
     paths     = [data_output%i for i in idx_sim_folder]
-    mean, var = get_mean_sim_data_lo(paths,N_sim)
-    
+    mean, var = get_dh_dl( fe_data = [get_data(paths)], no_intermediates = N_sim, delta = delta , both_ways = False)
+
+    logger.info("Current lambda intermediates:\n" + " ".join([str(np.round(l,3)) for l in l_init]) + "\n")
     logger.info("Current dU/dlambda simulation results:\n" + " ".join([str(np.round(m,3)) for m in mean]) + "\n")
     logger.info("Current var simulation results:\n" + " ".join([str(np.round(v,3)) for v in var]) + "\n")
 
@@ -127,7 +133,7 @@ while N_sim <= N_max:
     logger.info("Uncertanties of current deltaG_i:\n" + "\t".join(["var( delta G(%d -> %d) ): %.3f"%(i,i+1,dgi) for i,dgi in enumerate(dG_i)]) + "\n")
     logger.info("\nLeading to a current RMSD of %.1f%%\n"%(rmsd*100))
 
-    # End the iteration if either the tolerance or the minimum number of simulations is achieved 
+    # End the iteration if either the tolerance and the minimum number of simulations is achieved 
     if not( N_sim < N_min or rmsd > tolerance ): 
         break
 
@@ -168,8 +174,8 @@ while N_sim <= N_max:
             f.write( "\nCurrent training data:\n" + " ".join([str(np.round(m,3)) for m in gpr_modeling.Y.flatten()]) + "\n" )
             f.write("\n\n")
 
-    # Get new lambdas (this means redistribute the current lambdas and add one point more) with BO or interpolation redistribution
-    l_init = get_new_lambdas(l_init,var,gpr_modeling,method="BO",precision=2,logger=logger,verbose=True)
+    # Get new lambdas (this means redistribute the current lambdas and add one point more) using a GPR and minimization method (BO or nelder-mead) or interpolation redistribution
+    l_init = get_new_lambdas(lambdas = l_init, variances = var, method = "linear_adapt", precision=2, verbose=True)
 
     # Loop through new lambdas and check if simulation already exists and if not then start it
     idx_sim_folder = []
@@ -185,12 +191,10 @@ while N_sim <= N_max:
         if nl in l_learn:
             oli = np.where( l_learn.flatten() == nl )[0][0]
             shutil.move( sim_folder_names%oli, sim_folder_names%nli )
-            #print("old lambda: %.2f in folder %s will be renamed to %s"%(nl,sim_folder_names%oli, sim_folder_names%nli))
         
         # If lambda was not simulated bevore
         else:
             os.mkdir( sim_folder_names%nli )
-            #print("new lambda: %.2f in folder %s"%(nl,sim_folder_names%nli))
             
 
     for l in l_init:
@@ -254,7 +258,7 @@ logger.info("\nThe job folders indices are:\n[ " + ", ".join([str(i) for i in id
 
 # Gather last time the simulation results and process them
 paths     = [data_output%i for i in idx_sim_folder]
-mean, var = get_mean_sim_data_lo(paths,len(l_init))
+mean, var = mean, var = get_dh_dl( fe_data = [get_data(paths)], no_intermediates = N_sim, delta = delta , both_ways = False)
     
 logger.info("Current dU/dlambda simulation results:\n" + " ".join([str(np.round(m,3)) for m in mean]) + "\n")
 logger.info("Current var simulation results:\n" + " ".join([str(np.round(v,3)) for v in var]) + "\n")

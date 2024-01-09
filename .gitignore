@@ -8,3 +8,9 @@ __pycache__/
 # Ignore IDE-specific files and directories
 .vscode/
 .idea/
+
+# Ignore development simulation folder
+development/lammps/
+
+# Ignore simulation folder
+simulation_systems/

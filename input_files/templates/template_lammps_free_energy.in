@@ -10,11 +10,24 @@ dimension 3
 boundary p p p
 atom_style      full
 
+# Define if new simulation (0) or read restart (1)
+
 # Define bond, angle, and dihedral style
 
 {%if settings.style.bond|length > 0%}bond_style    {{settings.style.bond|join(' ')}}{%- endif %}
 {%if settings.style.angle|length > 0%}angle_style    {{settings.style.angle|join(' ')}}{%- endif %}
 {%if settings.style.dihedral|length > 0%}dihedral_style    {{settings.style.dihedral|join(' ')}}{%- endif %}
+
+variable restart equal {{settings.restart}}
+
+if "${restart} == 1" then "read_restart {{settings.restart_file}}" else "read_data       {{settings.data_file}}"
+
+{%- if settings.restart == 1 %}
+# Define bond, angle, and dihedral style (after restart)
+{%-if settings.style.bond|length > 0%}bond_style    {{settings.style.bond|join(' ')}}{%- endif %}
+{%-if settings.style.angle|length > 0%}angle_style    {{settings.style.angle|join(' ')}}{%- endif %}
+{%-if settings.style.dihedral|length > 0%}dihedral_style    {{settings.style.dihedral|join(' ')}}{%- endif %}
+{%- endif %}
 
 # Define pair style and further settingstings
 
@@ -29,12 +42,6 @@ neigh_modify every 1 delay 0 check yes
 # Define special bonds to scale 1-2, 1-3, or 1-4 vdW / Coulomb pair interactions
 
 special_bonds lj {{settings.sp_bond.vdw|join(' ')}}  coul {{settings.sp_bond.coulomb|join(' ')}}
-
-# Define if new simulation (0) or read restart (1)
-
-variable restart equal {{settings.restart}}
-
-if "${restart} == 1" then "read_restart {{settings.restart_file}}" else "read_data       {{settings.data_file}}"
 
 # Van der Waals interactions
 
