@@ -53,9 +53,9 @@ class GPR():
         """        
         X  = x/self.X_normer
 
-        hf_mean, hf_var = self.model.predict(X)
+        predict_mean, predict_var = self.model.predict(X)
 
-        return hf_mean*self.Y_normer, hf_var*self.Y_normer**2 
+        return predict_mean*self.Y_normer, predict_var*self.Y_normer**2 
     
     def plot(self):
         return

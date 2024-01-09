@@ -1,364 +1,183 @@
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from scipy.constants import R
 from scipy.interpolate import interp1d
-from tools.utils import get_simulation_data, plot_data, trapezoid_integration, cubic_integration
-from tools.multi_fidelity import get_lf_training_data, prep_mf_input, MF
+from .numeric_utils import fit_poly
+from .reader import get_simulation_data
+from .free_energy_objects import ThermodynamicIntegration, FreeEnergyPerturbation, MixtureComponent
+from .multi_fidelity import get_lf_training_data, prep_mf_input, MF
 
-def get_delta_fe(sim_path: str, components: List[str], charged: List[bool], free_eng_method: str,
-                 compositions: List, no_composition: int, temperatures: List,
-                 sim_lambdas: List[List], delta: float, both_ways: bool, dG_save_path: str,
-                 lf_databanks: List[str], lf_mixtures: List[str], lf_unique_keys: List[str],
-                 lengthscales: List[List]=[[],[]], fix_lengthscale: bool=False, fix_hf_noise: bool=True,
-                 fraction: float= 0.0, verbose: bool=False ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def get_mixture_components( molecule_name_list: List[str], coupling_lambdas: List[List[float]], main_path: str, Mol_masses: List[float], 
+                            x_pred: np.ndarray=np.linspace(0,1,21), delta: float=0.001, both_ways: bool=True, free_eng_method: str="TI", free_eng_sub_style: str="",
+                            integration_method: str="cubicspline", verbose: bool=False,
+                            thermodynamic_settings_dict: Dict[str, Dict[str, List]]={"molecule1": {"composition": [], "temperature": [], "activity_coeff": []} },
+                            multifidelity_settings_dict: Dict[str, List]={"lf_databanks":[], "lf_mixtures": [], "lf_unique_key": [], "lengthscales":[], "fix_lengthscale":False, "fix_hf_noise": True}, 
+                            ):
+
     """
-    Function that gather simulation data (dH/dlambda) to perform thermodynamic integration. 
-
-    Args:
-        sim_path (str): Path to simulation, should look like this: ".../%s/sim_%s/x%.1f/TI/sim_%s_%d/fep_%s.fep%d%d".
-        components (List[str]): Names of the components of the mixture.
-        charged (List[bool]): List if the components are charged (only relevant in Coulomb case).
-        free_eng_method (str): Method for evaluation of the the free energy difference.
-        compositions (List): Simulated compositions of this mixture.
-        no_composition (int): Number of compositions for which the 2D multi fidelity should be evaluated
-        temperatures (List): Simulated temperatures. Will be interpolated if more compositions then simulated are evaluated.
-        sim_lambdas (List[List]): List containing sublists for the lambda intermediates used in the vdW/coulomb case.
-        delta (float): Infitesimal small deflection to compute numerical derivative.
-        both_ways (bool): If only a forward difference or a also a backward difference is performed.
-        lf_databanks (List[str]): Path to low fidelity databank (for vdW / Coulomb ).
-        lf_mixtures (List[str]): Mixture that should be utilized as low fidelity model (named: component1_component2) (for vdW / Coulomb ).
-        lf_unique_keys (List[str]): Thermodynamic key for this mixture (e.g.: Temperature or pressure) (for vdW / Coulomb ).
-        lengthscales (List[List], optional): Possible default lenghtscale hyperparameters (for vdW / Coulomb ). Defaults to [[],[]].
-        fix_lengthscale (bool, optional): If the lenghtscale hyperparameters should be fixed. Defaults to False.
-        fix_hf_noise (bool, optional): If the noise of the high fidelity should be fixed. Defaults to True.
-        dG_save_path (str): Fillable path where plots should be saved.
-        fraction (float, optional): Time fraction of simulation output that should be ommited. Defaults to 0.0.
-        verbose (bool, optional): If detailed information should be printed out. Defaults to False.
-
-    Returns:
-        dG_mix (2D array): Free energy difference for each component in each composition.
-        dG_var (2D array): Standard deviation of the free energy difference for each component in each composition.
-        densities (1D array): Mass mixture density for each composition (interpolated to match x_pred).
-        temperatures (1D array): Temperatures at which the free energy differences are computed (interpolated to match x_pred).
-        x_pred (1D array): New evaluated liquid compositions
-    """
-
-    ## Initialize ##
-
-    x_pred          = np.linspace(0.0, 1.0, no_composition) if no_composition != len(compositions) else compositions
-    dG_mix          = np.zeros((2,no_composition))
-    dG_var          = np.zeros((2,no_composition))
-    densities       = []
-    flag_plot_total = False
-
-    interpol        = "quadratic" if len( compositions ) == 3 else "cubic"
-    rt              = R * interp1d( compositions, temperatures, kind=interpol )( x_pred )
-
-    for k,sim_lambda in enumerate( sim_lambdas ):
-
-        sim_txt = "vdw" if k==0 else "coulomb"
-
-        # If both components arent charged, skip the whole coulomb evaluation
-        if k==1 and not any( charged ): continue
-
-        print(f"\n{sim_txt} part of the solvation free energy\n")
-
-        # Get simulation data for whole mixture
-        settings_dict = { "sim_txt": sim_txt, "sim_path":sim_path, "components": components, "charged":charged,
-                          "compositions": compositions, "lambdas": sim_lambda, "delta": delta,
-                          "both_ways": both_ways, "fraction": fraction }
-        
-        hf_l, hf_xi, hf_du_dl, hf_du_dl_var, dens_tmp = get_simulation_data( **settings_dict )
-
-        ## Perform integration on simulation data ##
-
-        if "multi_fidelity" in free_eng_method:
-
-            settings_dict = { "components": components, "hf_data": [hf_l,hf_xi,hf_du_dl,hf_du_dl_var], 
-                              "free_eng_method": free_eng_method, "x_pred": x_pred, "lf_databank": lf_databanks[k], 
-                              "lf_mixture": lf_mixtures[k], "lf_unique_key": lf_unique_keys[k], "lengthscale":lengthscales[k], 
-                              "fix_lengthscale": fix_lengthscale, "fix_hf_noise": fix_hf_noise, "verbose": verbose }
-            
-            dG_mix_tmp, dG_std_tmp =  mf_modeling_dh_dl( **settings_dict )
-
-        # Flip data for 2nd component to match that x2=1-x1
-        dG_mix_tmp[1] = np.flip(dG_mix_tmp[1])
-        dG_std_tmp[1] = np.flip(dG_std_tmp[1])
-        dens_tmp[1]   = np.flip(dens_tmp[1])
-
-        # Average the density over insertion/deletion from component 1 in mixture and from component 2 in mixture
-        # If only one component is charged and the other not, then density arrays will have the initial zero entry for this component
-        # To prevent the mean to be distorted, copy the gather densities from the charged component
-        dummy = [dens for dens in dens_tmp if all(dens)]
-        if len(dummy) == 1: dens_tmp = np.array( dummy*2 )
-
-        # Multiply with temperature to get corect dimension and plot delta G over compositions
-        dG_mix_tmp *= rt
-        dG_std_tmp *= rt
-
-        ## Plot the data ##
-
-        data   = [[x_pred,dG_mix_tmp[0]/1000], [x_pred,dG_mix_tmp[1]/1000],
-                  [x_pred,[ (dG_mix_tmp[0]-1.*dG_std_tmp[0])/1000, (dG_mix_tmp[0]+1.*dG_std_tmp[0])/1000] ],
-                  [x_pred,[ (dG_mix_tmp[1]-1.*dG_std_tmp[1])/1000, (dG_mix_tmp[1]+1.*dG_std_tmp[1])/1000] ],
-                  [x_pred[-1],dG_mix_tmp[0][-1]/1000,None,dG_std_tmp[0][-1]/1000], [x_pred[0],dG_mix_tmp[1][0]/1000,None,dG_std_tmp[1][0]/1000] ]
-        
-        labels = [ "$\Delta G_\mathrm{%s}^\mathrm{mix}$"%components[0], 
-                   "$\Delta G_\mathrm{%s}^\mathrm{mix}$"%components[1],
-                   "",
-                   "",
-                   "$\Delta G_\mathrm{%s}^\mathrm{pure}$"%components[0], 
-                   "$\Delta G_\mathrm{%s}^\mathrm{pure}$"%components[1], 
-                   "$x_\mathrm{%s}$ / -"%components[0], "$\Delta G / kJ/mol"]
-        
-        colors = [ "tab:blue", "tab:orange", "tab:blue", "tab:orange", "tab:blue", "tab:orange" ]
-        ls     = [ "solid", "solid", "None", "None", "None", "None"]
-        marker = [ "None","None", "None","None", "x", "x" ]
-        
-        fill   = [False, False, True, True, False, False]
-
-        save_path = dG_save_path%sim_txt
-
-        plot_data(data,labels,colors,save_path,ax_lim=[[0.0,1.0]],linestyle=ls,markerstyle=marker,lr=True,fill=fill)
-
-        # Update overall delta G and densities
-        dG_mix    += dG_mix_tmp
-        dG_var    += dG_std_tmp**2
-        densities.append( np.mean(dens_tmp,axis=0) )
-
-        if k==1: flag_plot_total = True
-
-    ## Plot total free solvation energy ##
-
-    if flag_plot_total:
-        data   = [ [x_pred,dG_mix[0]/1000], [x_pred,dG_mix[1]/1000],
-                   [x_pred,[ (dG_mix[0]-1.*np.sqrt(dG_var)[0])/1000, (dG_mix[0]+1.*np.sqrt(dG_var)[0])/1000] ],
-                   [x_pred,[ (dG_mix[1]-1.*np.sqrt(dG_var)[1])/1000, (dG_mix[1]+1.*np.sqrt(dG_var)[1])/1000] ],
-                   [x_pred[-1],dG_mix[0][-1]/1000,None,np.sqrt(dG_var)[0][-1]/1000], [x_pred[0],dG_mix[1][0]/1000,None,np.sqrt(dG_var)[1][0]/1000] ]
-        
-        labels = [ "$\Delta G_\mathrm{%s}^\mathrm{mix}$"%components[0], 
-                   "$\Delta G_\mathrm{%s}^\mathrm{mix}$"%components[1],
-                   "",
-                   "",
-                   "$\Delta G_\mathrm{%s}^\mathrm{pure}$"%components[0], 
-                   "$\Delta G_\mathrm{%s}^\mathrm{pure}$"%components[1], 
-                   "$x_\mathrm{%s}$ / -"%components[0], "$\Delta G / kJ/mol"]
-        
-        colors = [ "tab:blue", "tab:orange", "tab:blue", "tab:orange", "tab:blue", "tab:orange" ]
-        ls     = [ "solid", "solid", "None", "None", "None", "None"]
-        marker = [ "None","None", "None","None", "x", "x" ]
-        
-        fill   = [False, False, True, True, False, False]
-        
-        save_path = dG_save_path%"total"
-
-        plot_data(data,labels,colors,save_path,ax_lim=[[0.0,1.0]],linestyle=ls,markerstyle=marker,lr=True,fill=fill)
+    Function that reads in simulation data from a specified simulation path (molecule_name/liquid_compositiom/coupling_key/free_energy_method/sim_*/fep*.sampling) to get the 
+    solvation free energy of the component in a given mixture. For each component a dictionary containing the thermodynamic settings (compositions simulated, 
+    temperatures and reference activity coeffients) should be provided. Furthermore, if thermodynamic integration with multi fidelity modeling should be utilized, a dictionary,
+    containing all relevant settings (Path to low fidelity databank, low fidelity mixture, thermodynamic key of the low fidelity mixture, lengthscale hyperparameters, 
+    a boolen if they should be fixed or optimized, and a boolean deciding if the simulation noise should be used to fix the high fidelity model noise) should be provided.
     
-    # Interpolate sampled densities to match new composition prediction
-    densities    = np.mean( densities, axis=0 )
-    densities    = interp1d( compositions, densities, kind=interpol )( x_pred )
-    temperatures = rt/R
-
-    return dG_mix,np.sqrt(dG_var),densities,temperatures,x_pred
-
-
-def mf_modeling_dh_dl(components: List[str], hf_data: List[List], free_eng_method: str, x_pred: np.ndarray,
-                      lf_databank: str, lf_mixture: str, lf_unique_key: str, lengthscale: List[float]=[],
-                      fix_lengthscale: bool=False, fix_hf_noise: bool=True, verbose=False ) -> Tuple[ np.ndarray,np.ndarray ]:
-
-    """
-    Function that performs multi-fidelity modeling (either 1D or 2D) on thermodynamic integration data to compute free energy differences
-
     Args:
-        components (List[str]): Names of the components of the mixture.
-        hf_data (list): List containing several sublists. In the first sublist, the lambda training points are provided for every composition of component.
-                        In the 2nd sublist, the composition training points are provided for every composition of component.
-                        In the 3th sublist, the du_dlambda training data is provided for every composition of component.
-                        (Optional) In the 4th sublist, the variance of the du_dlambda training data is provided for every composition of component.
-        free_eng_method (str): Method for evaluation of the the free energy difference.
-        x_pred (np.ndarray): New evaluated liquid compositions.
-        lf_databank (str): Path to low fidelity databank.
-        lf_mixture (str): Mixture that should be utilized as low fidelity model (named: component1_component2).
-        lf_unique_key (str): Thermodynamic key for this mixture (e.g.: Temperature or pressure).
-        lengthscale (List[float], optional): Possible default lenghtscale hyperparameters. Defaults to [].
-        fix_lengthscale (bool, optional): If the lenghtscale hyperparameters should be fixed. Defaults to False.
-        fix_hf_noise (bool, optional): If the noise of the high fidelity should be fixed. Defaults to True.
-        verbose (bool, optional): If detailed information should be printed out. Defaults to False.
-
-    Returns:
-        dG_mix_tmp (2D array): Solvation free energy difference for each component in each composition.
-        dG_std_tmp (2D array): Standard deviation of the solvation free energy difference for each component in each composition.
+        molecule_name_list (List[str]): List of all components that are coupled. 
+        coupling_lambdas (List[List[float]]): List with coupling lambdas used for every component. In each list, coupling lambdas for the van der Waals, as well as the Coulomb coupling
+                                              should be provided.
+        main_path (str): Main path to the simulation folder, the following path to simulation results should look like this: molecule_name/liquid_compositiom/coupling_key/free_energy_method/sim_*/fep*.sampling
+        Mol_masses (List[float]): List with molar masses of every component in the mixture (given in kg/mol).
+        x_pred (np.ndarray, optional): Liquid composition array for which the solvation free energies, densities and simulation temperatures will be fitted/interpolated for. 
+                                       Defaults to np.ndarray=np.linspace(0,1,21).
+        delta (float, optional): Perturbation in case of thermodynamic integration, this is needed to compute the numerical derivative of the potential energy / enthalpy with respect to lambda.
+                                 Defaults to 0.001.
+        both_way (bool, optional): If two perturbations are performed. E.g: TI: forward and backward difference, FEP: calculation to the previous and next lambda. 
+                                   Or only in forward direction if false. Defaults to True.
+        free_eng_method (str, optional): Free energy method used. Defaults to TI.
+        free_eng_sub_style (str, optional): Sub style of the free energy method. E.g.: for TI (multi fidelity modeling) or for FEP (BAR, FEP forward, FEP backward). Defaults to "".
+        integration_method (str, optional): Integration method for thermodynamic integration. Trapezoid scheme (trapezoid), Cubic splines (cubicspline) 
+                                            or a Gaussian process regression (GRP). Defaults to cubicspline.
+        verbose (str, optional): If more output should be print to screen. Defaults to false.
+        thermodynamic_settings_dict (Dict[str, Dict[str, List]]): Dictionary containing all necessary thermodynamic information for each component. 
+                                                                  Defaults to {"molecule1": {"composition": [], "temperature": [], "activity_coeff": []} }.
+        multifidelity_settings_dict (Dict[str, List]): Dictionary containing all necessary multi fidelity settings.
+                                                       Defaults to {"lf_databanks":[], "lf_mixtures": [], "lf_unique_key": [], "lengthscales":[], "fix_lengthscale":False, "fix_hf_noise": True}.
     """
-
-    dG_mix_tmp = np.zeros((2,len(x_pred)))
-    dG_std_tmp = np.zeros((2,len(x_pred)))
     
-    # Perform integration on 2D or 1D MF simulation data (first dimension: lambda, second dimension: composition)
-    dimension = 2 if free_eng_method == "2d_multi_fidelity" else 1
+    mixture_components = []
 
-    # Get low fidelity data and prepare mf data input
-    settings_dict = {"lf_databank": lf_databank, "lf_mixture": lf_mixture, "lf_unique_key":lf_unique_key }
-    lf_data       = get_lf_training_data( **settings_dict )
+    for i, molecule_name in enumerate( molecule_name_list):
+        print(f"\nInsertion of {molecule_name}\n")
 
-    ## Get high fidelity prediction and integrate it ##
+        # Extract simulated thermodynamic settings
+        composition    = thermodynamic_settings_dict[molecule_name]["composition"]
+        temperature    = thermodynamic_settings_dict[molecule_name]["temperatures"]
+        activity_coeff = thermodynamic_settings_dict[molecule_name]["activity_coeff"]
 
-    for i in range(2):
+        # Interpolate the temperature to match the new liquid compositions
+        interpolation_method = "linear" if len(composition) <= 2 else "quadratic" if len(composition) == 3 else "cubic"
+        temperature          = interp1d( composition, temperature, kind = interpolation_method )( x_pred )
+
+        # Gather simulation data and compute the solvation free energy
+        mass_density = []
+        delta_G_contributions = {}
+        free_energy_class_contributions = {}
+
+        for j,lambdas in enumerate(coupling_lambdas[i]):
+            if not lambdas: continue
+
+            # Define type of coupled interaction
+            coupling_key = "vdw" if j == 0 else "coulomb"
+
+            # Define simulation path
+            sim_path = f"{main_path}/{molecule_name}_coupled/x%.1f/{coupling_key}/{free_eng_method}/sim_%d/fep%d%d.sampling"
+
+            free_eng_class, mass_dens = get_simulation_data( sim_path = sim_path, compositions = composition, lambdas = lambdas, both_ways = both_ways,
+                                                             free_energy_method = free_eng_method, delta = delta )
+            
+            # LAMMPS output in g/cm^3 -> convert in kg/m^3
+            mass_density.append( np.array( mass_dens ) * 1000 )
+
+            # Get the resulting free energy difference using the specified free energy method
+            settings_dict = { "free_eng_class": free_eng_class, "component": molecule_name, "free_energy_method": free_eng_method, "x_pred": x_pred,
+                              "integration_method": integration_method, "free_eng_sub_style": free_eng_sub_style, "verbose": verbose,
+                              "lf_databank": multifidelity_settings_dict["lf_databanks"][j], "lf_mixture": multifidelity_settings_dict["lf_mixtures"][j], 
+                              "lf_unique_key": multifidelity_settings_dict["lf_unique_keys"][j], "lf_component": multifidelity_settings_dict["lf_components"][j][i],
+                              "lengthscale": multifidelity_settings_dict["lengthscales"][j], "fix_lengthscale": multifidelity_settings_dict["fix_lengthscale"],
+                              "fix_hf_noise": multifidelity_settings_dict["fix_hf_noise"] }
+            
+            delta_G, var_delta_G = get_delta_G( **settings_dict )
+
+            # Save the solvation free energy for each contribution (convert from dimensionless (G/(RT)) to J/mol)
+            delta_G_contributions[coupling_key] = { "delta_G": delta_G * R * temperature, "var_delta_G": var_delta_G * ( R * temperature )**2 }
+
+            # Save the free energy class
+            free_energy_class_contributions[coupling_key] = free_eng_class
         
-        # Skip if high fidelity data is emtpy, for example in the case of coulomb interaction for uncharged component
-        if not any(len(sublist) > 0 for sublist in hf_data[0][i]): continue
+        # Average the mass density and interpolate it to match the new liquid compositions
+        mass_density         = interp1d( composition, np.mean(mass_density, axis=0), kind = interpolation_method )( x_pred )
 
-        settings_dict = { "component":components[i], "hf_data": [hf[i] for hf in hf_data], "lf_data": [lf[i] for lf in lf_data], "x_pred":x_pred,
-                          "dimension": dimension, "lengthscale":lengthscale, "fix_lengthscale":fix_lengthscale,
-                          "fix_hf_noise":fix_hf_noise, "verbose":verbose }
-        l_pred,hf_mean,hf_var = get_hf_prediction( **settings_dict )
+        # Define the molecular weight of the mixture based on the composition
+        molecular_mass       = [ np.dot( Mol_masses, [ x, 1 - x ] if i == 0 else [ 1 - x, x ])  for x in composition ]
         
-        for ii,xi in enumerate(x_pred):
-            dG_mix_tmp[i][ii], dG_std_tmp[i][ii] = cubic_integration( l_pred, hf_mean[ii*len(l_pred):(ii+1)*len(l_pred),0], hf_var[ii*len(l_pred):(ii+1)*len(l_pred),0] )
+        # Save all data in the mixture component class
+        settings_dict = { "component": molecule_name, "liquid_composition": x_pred, "temperature": temperature, "mass_density": mass_density,
+                        "solvation_free_energy_contributions": delta_G_contributions, "molecular_mass": molecular_mass }
+        
+        mixture_component = MixtureComponent( **settings_dict )
 
-    return dG_mix_tmp, dG_std_tmp
+        # Add reference gammas from thermodynamic input
+        mixture_component.add_reference_gamma( reference_composition = composition, reference_gamma = activity_coeff )
+        
+        # Add free energy objects
+        for key,item in free_energy_class_contributions.items():   
+            mixture_component.add_free_energy_object( key = key, free_energy_object = item )
 
+        mixture_components.append( mixture_component )
 
-def get_hf_prediction( component, hf_data: List[List], lf_data: List[List], x_pred: np.ndarray, dimension: int=2, 
-                       lengthscale: List[float]=[], fix_lengthscale: bool=False, fix_hf_noise: bool=True, 
-                       plot_3d: bool=True, no_lambda_intermediates: int=51, verbose=False) -> Tuple[ np.ndarray, np.ndarray, np.ndarray ]:
+    return mixture_components
+
+def get_delta_G( free_eng_class: ThermodynamicIntegration | FreeEnergyPerturbation, component: str, free_energy_method: str, x_pred: np.ndarray, free_eng_sub_style: str="",
+                 integration_method: str="cubicspline", poly_degree: int=3, lf_databank: str="", lf_mixture: str="", lf_unique_key: str="", lf_component: str="",
+                 lengthscale: List[float]=[], fix_lengthscale: bool=False, fix_hf_noise: bool=True, verbose: bool=False ) -> Tuple[ List[float], List[float] ]:
     """
-    Function that uses linear Multi-fidelity modeling to interpolate dH/dlambda from free energy simulations. 
-    This will loop through every composition of the mixture and return the interpolated dH/dlambda as well as its variance for the specified component.
-
+    Function that uses a free energy class object and obtain the free energy difference over a given composition. 
+    Possibilites are thermodynamic integration, exponential averaging or the BAR method.
 
     Args:
-        component (_type_): Component for which the multi fidelity modeling is performed
-        hf_data (list): List containing several sublists. In the first sublist, the lambda training points are provided for every composition of component.
-                        In the 2nd sublist, the composition training points are provided for every composition of component.
-                        In the 3th sublist, the du_dlambda training data is provided for every composition of component.
-                        (Optional) In the 4th sublist, the variance of the du_dlambda training data is provided for every composition of component.
-        lf_data (list): List containing several sublists. In the first sublist, the low fidelity lambdas are provided for every composition of low fidelity component.
-                        In the 2nd sublist, the low fidelity compositions are provided for every composition of low fidelity component.
-                        In the 3th sublist, the du_dlambda low fidelity data is provided for every composition of low fidelity component.
-        x_pred (np.ndarray): New evaluated liquid compositions.
-        dimension (int, optional): Dimension of the multi fidelity modeling. 2D includes the compositions, 1D is just dH/dl over lambda. Defaults to 2.
-        lengthscale (List[float], optional): Possible default lenghtscale hyperparameters. Defaults to [].
+        free_eng_class (ThermodynamicIntegration | FreeEnergyPerturbation)
+        component (str): Names of the component.
+        free_energy_method (str): Method for evaluation of the the free energy difference.
+        x_pred (1D array): New evaluated liquid compositions.
+        free_eng_sub_style (str, optional): Sub style of free energy method. E.g.: multi fidelity, FEP, BAR, ...
+        integration_method (str, optional): Integration method. Defaultst to cubicspline.
+        poly_degree (int, optional): Degree of the polynomial fit that is performed on the sampled free energies over the composition (if 2d multifidelity, this is not the case).
+        lf_databank (str, optional): Path to low fidelity databank (for vdW / Coulomb ).
+        lf_mixtured (str, optional): Mixture that should be utilized as low fidelity model (named: component1_component2) (for vdW / Coulomb ).
+        lf_unique_key (str, optional): Thermodynamic key for this mixture (e.g.: Temperature or pressure) (for vdW / Coulomb ).
+        lengthscales (List[float], optional): Possible default lenghtscale hyperparameters (for vdW / Coulomb ). Defaults to [].
         fix_lengthscale (bool, optional): If the lenghtscale hyperparameters should be fixed. Defaults to False.
         fix_hf_noise (bool, optional): If the noise of the high fidelity should be fixed. Defaults to True.
-        plot_3d (bool, optional): If a 3D plot for the 2D modeling should be made or one plot for each composition. Defaults to True.
-        no_lambda_intermediates (int, optional): New evaluated lambda intermediates. Defaults to 51.
         verbose (bool, optional): If detailed information should be printed out. Defaults to False.
 
     Returns:
-        l_pred (1D array): Predicted lambda points
-        hf_mean (2D array): Predicted du_dlambda data
-        hf_var (2D array): Variance of predicted du_dlambda data
+        delta_G (List[float]): Free energy difference for each component in each composition.
+        delta_G_var (List[float]): Standard deviation of the free energy difference for each component in each composition.
+
     """
 
-    # Create lambda vector for multi fidelity prediction
-    l_pred = np.linspace(0.0, 1.0, no_lambda_intermediates)
+    if free_energy_method == "TI":
 
-    if dimension == 2:
-
-        print(f"\n2D Multi-fidelity modeling for component: {component}\n")
-
-        # Prepare multi fidelity data as 2D data
-        X_train,Y_train,F_train = prep_mf_input( hf_data[:3], lf_data, dimension=dimension )
-
-        # Train multi fidelity model 
-        mf_modeling             = MF( X_train, Y_train, F_train, n_optimization_restarts = 2 )
-
-        # Set initial values (might results in faster and better convergence of hyperparameter optimization)
-        if bool(lengthscale):
-            mf_modeling.gpy_lin_mf_model.multifidelity.Mat32.lengthscale   = lengthscale
-            mf_modeling.gpy_lin_mf_model.multifidelity.Mat32_1.lengthscale = lengthscale
-
-        # If wanted constrain hyperparameters 
-        if fix_lengthscale:
-            mf_modeling.gpy_lin_mf_model.multifidelity.Mat32.lengthscale.fix()
-            mf_modeling.gpy_lin_mf_model.multifidelity.Mat32_1.lengthscale.fix()
-        
-        # Use high fidelity simulation variance to fix noise of high fidelity
-        if len(hf_data) == 4 and fix_hf_noise:
-            mf_modeling.gpy_lin_mf_model.mixed_noise.Gaussian_noise_1.variance = np.mean( hf_data[3] ) / mf_modeling.Y_normer**2 
-            mf_modeling.gpy_lin_mf_model.mixed_noise.Gaussian_noise_1.variance.fix()
-
-        # Optimize hyperparemeters
-        mf_modeling.train()
-
-        if verbose:
-            print("\nLow fidelity variance: %.3f"%mf_modeling.gpy_lin_mf_model[0])
-            print("Low fidelity lengthscales: %.3f, %.3f"%(mf_modeling.gpy_lin_mf_model[1],mf_modeling.gpy_lin_mf_model[2]))
-            print("High fidelity variance: %.3f"%mf_modeling.gpy_lin_mf_model[3])
-            print("High fidelity lengthscales: %.3f, %.3f"%(mf_modeling.gpy_lin_mf_model[4],mf_modeling.gpy_lin_mf_model[5]))
-            print("Phi parameter: %.3f"%mf_modeling.gpy_lin_mf_model[6])
-            print("Low fidelity noise: %.3f"%mf_modeling.gpy_lin_mf_model[7])
-            print("High fidelity noise: %.3f"%mf_modeling.gpy_lin_mf_model[8])
-        
-        ## Acquire high fidelity prediction ##
-
-        col1, col2     = np.meshgrid(l_pred, x_pred)
-        X_pred         = np.column_stack((col1.ravel(), col2.ravel()))
-
-        hf_mean,hf_var = mf_modeling.predict_high_fidelity(X_pred)
-
-        if verbose: 
-            labels = ["$\lambda$ / -", "x$_\mathrm{%s}$ / -"%component,"$ \\langle \\frac{\partial U}{\partial \lambda} \\rangle_{\lambda} \ / \ (k_\mathrm{B}T)$"]
-            mf_modeling.plot( labels, plot_3d = plot_3d )
-
-    else:
-
-        print(f"\n1D Multi-fidelity modeling for component: {component}\n")
-        hf_mean,hf_var = [],[]
-
-        # *hf_var_du_dl syntax is used to capture the remaining elements in a list. If none are left, then hf_var_du_dl will be empty
-        for hf_l, hf_x, hf_du_dl, *hf_var_du_dl in zip( *hf_data ):
-
-            # Seach for low fidelity data that fits composition the best
-            idx = np.argmin( [np.abs(np.unique(hf_x) - np.unique(lf_x)) for lf_x in lf_data[1] ] )
-
-            # Prepare multi fidelity data as 1D data
-            X_train,Y_train,F_train = prep_mf_input( [hf_l, hf_du_dl], [lf_data[0][idx],lf_data[2][idx]], dimension=dimension )
-
-            # Train multi fidelity model
-            mf_modeling = MF( X_train, Y_train, F_train, n_optimization_restarts = 2 )
-
-            # Set initial values (might results in faster and better convergence of hyperparameter optimization)
-            if bool(lengthscale):
-                mf_modeling.gpy_lin_mf_model.multifidelity.Mat32.lengthscale   = lengthscale[0]
-                mf_modeling.gpy_lin_mf_model.multifidelity.Mat32_1.lengthscale = lengthscale[0]
+        if "multi_fidelity" in free_eng_sub_style:
             
-            # If wanted constrain hyperparameters 
-            if fix_lengthscale:
-                mf_modeling.gpy_lin_mf_model.multifidelity.Mat32.lengthscale.fix()
-                mf_modeling.gpy_lin_mf_model.multifidelity.Mat32_1.lengthscale.fix()
+            # Perform integration on 2D or 1D MF simulation data (first dimension: lambda, second dimension: composition)
+            dimension = 2 if "2d" in free_eng_sub_style else 1
+
+            # Get low fidelity data and prepare mf data input
+            settings_dict = {"lf_databank": lf_databank, "lf_mixture": lf_mixture, "lf_unique_key": lf_unique_key, "lf_component": lf_component }
+
+            lf_lambdas, lf_compositions, lf_dh_dl = get_lf_training_data( **settings_dict )
             
-            # Use high fidelity simulation variance to fix noise of high fidelity #
+            settings_dict = { "component": component, "lf_compositions": lf_compositions, "lf_lambdas": lf_lambdas, "lf_dh_dl": lf_dh_dl,
+                              "dimension": dimension, "x_pred": x_pred, "lengthscale": lengthscale, "fix_lengthscale": fix_lengthscale,
+                              "fix_hf_noise": fix_hf_noise, "verbose": verbose}
             
-            if len(hf_data) == 4 and fix_hf_noise:
-                mf_modeling.gpy_lin_mf_model.mixed_noise.Gaussian_noise_1.variance = np.mean( hf_var_du_dl ) / mf_modeling.Y_normer**2 
-                mf_modeling.gpy_lin_mf_model.mixed_noise.Gaussian_noise_1.variance.fix()
+            free_eng_class.multifidelity( **settings_dict  )
 
-            # Optimize hyperparemeters #
-            mf_modeling.train()
+            # Integrate the high fidelity data
+            delta_G, delta_G_var = free_eng_class.integrate( integration_method = integration_method )
 
-            if verbose:
-                print("\nLow fidelity variance: %.3f"%mf_modeling.gpy_lin_mf_model[0])
-                print("Low fidelity lengthscale: %.3f"%mf_modeling.gpy_lin_mf_model[1])
-                print("High fidelity variance: %.3f"%mf_modeling.gpy_lin_mf_model[2])
-                print("High fidelity lengthscale: %.3f"%mf_modeling.gpy_lin_mf_model[3])
-                print("Phi parameter: %.3f"%mf_modeling.gpy_lin_mf_model[4])
-                print("Low fidelity noise: %.3f"%mf_modeling.gpy_lin_mf_model[5])
-                print("High fidelity noise: %.3f"%mf_modeling.gpy_lin_mf_model[6])
+            # If 1d multi fidelity is performed, fit a polynomial to the delta G's 
+            if dimension == 1: 
+                delta_G, delta_G_std = fit_poly( free_eng_class.compositions, delta_G, x_pred, deg=poly_degree, w=1/np.array(delta_G_var) )
+                delta_G_var          = delta_G_std**2
+        else:
+            # Integrate the raw data and fit a polynomial to it to match it to the predicted compositon
+            delta_G, delta_G_var = free_eng_class.integrate( integration_method = integration_method )
+            delta_G, delta_G_std = fit_poly( np.unique( free_eng_class.compositions ), delta_G, x_pred, deg=poly_degree, w=1/np.array(delta_G_var) )
+            delta_G_var          = delta_G_std**2
+            
 
-            ## Acquire high fidelity prediction ##
+    return delta_G, delta_G_var
 
-            X_pred    = l_pred.reshape(-1,1)
-            hf_m,hf_v = mf_modeling.predict_high_fidelity(X_pred)
 
-            hf_mean.append(hf_m)
-            hf_var.append(hf_v)
-
-            if verbose: 
-                labels = ["$\lambda$ / -", "$ \\langle \\frac{\partial U}{\partial \lambda} \\rangle_{\lambda} \ / \ (k_\mathrm{B}T)$"]
-                mf_modeling.plot(labels)
-
-        # Concatenate all high fidelity predictions for every high fidelity composition
-        hf_mean, hf_var = np.concatenate(hf_mean), np.concatenate(hf_var)
-        
-    return l_pred, hf_mean, hf_var
