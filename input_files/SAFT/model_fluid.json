@@ -1,0 +1,29 @@
+[ {
+        "identifier": {
+            "cas": "7440-37-1",
+            "name": "argon",
+            "smiles": "[LJ1]",
+            "inchi": "InChI=1S/Ar"
+        },
+        "molarweight": 39.962,
+        "model_record": {
+            "m": 1.0,
+            "sigma": 3.4098,
+            "epsilon_k": 89.8575
+        }
+    },
+    {
+        "identifier": {
+            "cas": "7440-37-1",
+            "name": "argon1",
+            "smiles": "[LJ2]",
+            "inchi": "InChI=1S/Ar"
+        },
+        "molarweight": 39.962,
+        "model_record": {
+            "m": 1.0,
+            "sigma": 3.4098,
+            "epsilon_k": 119.81
+        }
+    }
+]
