@@ -389,7 +389,7 @@ def plot_solvation_free_energy_binary( component_one: MixtureComponent, componen
             delta_G_solv_2_12_std = np.zeros(1)
         
         # If no component is charged, skipp the coulomb and the total plot (which equals the vdW plot in this case)
-        if not any(charged):
+        if not any(charged) and i == 1:
             continue
 
         data   = [ [x1,delta_G_solv_1_12/1000], [x2,delta_G_solv_2_12/1000],

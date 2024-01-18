@@ -149,12 +149,15 @@ class ThermodynamicIntegration:
             
             # In case that the original sampling data is overwritten, add the original sampling data in the plot
             if self.overwriten:
-                idx = np.where( np.unique( self.sampled_compositions ) == xi )
-                if len(idx) > 0:
-                    idx = idx[0]
+                idx = np.squeeze( np.where( np.unique( self.sampled_compositions ) == xi ) )
+                if idx.size == 1:
                     lambdas_orig   = self.sampled_lambdas[idx]
                     dh_dl_orig     = self.sampled_dh_dl[idx]
                     var_dh_dl_orig = self.sampled_var_dh_dl[idx]
+                else:
+                    lambdas_orig   = np.zeros(0)
+                    dh_dl_orig     = np.zeros(0)
+                    var_dh_dl_orig = np.zeros(0)
 
             if plot_3d:
                 if not self.overwriten: 
@@ -356,6 +359,6 @@ class MixtureComponent:
         """
         Function that dumps the class objects in a JSON serializable format
         """
-        obj_dict = serialize_json( self.__dict__, ( ThermodynamicIntegration, FreeEnergyPerturbation ) )
+        obj_dict = serialize_json( self.__dict__, target_class = ( ThermodynamicIntegration, FreeEnergyPerturbation ) )
             
         return obj_dict
