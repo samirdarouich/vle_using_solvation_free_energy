@@ -1,7 +1,7 @@
 [atoms.LJ1]
 name = "LJ1"
 mass = 39.948
-epsilon = 0.23813
+epsilon = 0.17860
 sigma = 3.4098
 m = 12.0
 cut = 12.79
@@ -11,7 +11,7 @@ style = "hybrid Mie/cut coul/long"
 [atoms.LJ2]
 name = "LJ2"
 mass = 39.948
-epsilon = 0.17860
+epsilon = 0.23813
 sigma = 3.4098
 m = 12.0
 cut = 12.79

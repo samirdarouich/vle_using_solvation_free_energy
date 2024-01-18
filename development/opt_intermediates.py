@@ -53,7 +53,7 @@ logger.addHandler(file_handler)
 atom_list_coulped_molecule = [1,2,3,4,5]
 
 # Define numerical pertubation
-delta          = 0.001
+delta          = 0.0001
 
 # Define minimum and maximum number of simulations
 N_min          = 10

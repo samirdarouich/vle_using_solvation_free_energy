@@ -11,6 +11,7 @@ __pycache__/
 
 # Ignore development simulation folder
 development/lammps/
+old/
 
 # Ignore simulation folder
 simulation_systems/

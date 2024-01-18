@@ -1,0 +1,10 @@
+Loading module dependency 'compiler/gnu/9.2'.
+Loading module dependency 'devel/cuda/10.1'.
+Warning on use of the timeseries module: If the inherent timescales of the system are long compared to those being analyzed, this statistical inefficiency may be an underestimate.  The estimate presumes the use of many statistically independent samples.  Tests should be performed to assess whether this condition is satisfied.   Be cautious in the interpretation of the data.
+Optimization restart 1/3, f = -135.04376420794657
+Optimization restart 2/3, f = -135.04376420795
+Optimization restart 3/3, f = -135.0437642079502
+Traceback (most recent call last):
+  File "/var/spool/torque/mom_priv/jobs/11226257.SC", line 102, in <module>
+    logger.info("Best value:", + " ".join([str(np.round(bv,3)) for bv in best_value]) + "\n")
+TypeError: 'numpy.float64' object is not iterable

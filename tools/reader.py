@@ -7,8 +7,8 @@ from pymbar import timeseries
 
 from .free_energy_objects import ThermodynamicIntegration, FreeEnergyPerturbation
 
-def get_simulation_data(sim_path: str, compositions: List[float], lambdas: List, both_ways: bool, free_energy_method: str="TI", delta: float=0.001,
-                        fraction: float= 0.0, density: bool=True,  density_file: str="values.sampling") -> Tuple[ List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray], List[float]]:
+def get_simulation_data(sim_path: str, compositions: List[float], lambdas: List, both_ways: bool, free_energy_method: str="TI", delta: float=0.0001,
+                        fraction: float= 0.0, density: bool=True,  density_file: str="values.sampling") -> Tuple[ ThermodynamicIntegration | FreeEnergyPerturbation, List[float]]:
     """
     Function that reads in simulation data from specified paths. This is specially designed to read in solvation free energy
     data for the insertion of a component into a mixture. Returns a free energy class object.
@@ -19,7 +19,7 @@ def get_simulation_data(sim_path: str, compositions: List[float], lambdas: List,
         lambdas (List): Lambdas that are used in this simulation.
         both_ways (bool): If only a forward difference or a also a backward difference is performed.
         free_energy_method (str, optional): Either thermodynamic integration (TI) or Bennet acceptance ratio / free energy perturbation (BAR/FEP) method. Defaults to TI.
-        delta (float, optional): Infitesimal small perturbation to compute numerical derivative. Defaults to 0.001.
+        delta (float, optional): Infitesimal small perturbation to compute numerical derivative. Defaults to 0.0001.
         density (bool, optional): If the mixture density should also be gathered. Defaults to True.
         fraction (float, optional): Time fraction of simulation output that should be ommited. Defaults to 0.0.
         density_file (str, optional): File name were the density values are saved. Defaults to "values.sampling".
@@ -83,7 +83,7 @@ def get_simulation_data(sim_path: str, compositions: List[float], lambdas: List,
         free_eng_class = None
         
     else:
-        free_eng_class = None
+        raise KeyError(f"Specified free energy method is not implemented: {free_energy_method}")
 
     return free_eng_class, dens_mix
 

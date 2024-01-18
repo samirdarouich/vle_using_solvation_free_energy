@@ -5,9 +5,8 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
+from typing import List, Tuple, Dict, Any
 from matplotlib.ticker import AutoMinorLocator
-from typing import List, Tuple, Dict
-
 
 def plot_data(datas: List[ List[List]], labels: List[str], colors: List[str],
               path_out: str="", linestyle: List[str]=[], markerstyle: List[str]=[], ax_lim: List[List[float]]=[[],[]],
@@ -110,6 +109,30 @@ def merge_nested_dicts(existing_dict: Dict, new_dict: Dict):
             existing_dict[key] = value
 
 
+def serialize_json(data: Dict | List | np.ndarray | Any, target_class: Tuple=(), precision: int=3 ):
+    """
+    Function that recoursevly inspect data for classes and remove them from the data. Also convert 
+    numpy arrys to lists and round floats to a given precision.
+
+    Args:
+        data (Dict | List | np.ndarray | Any): Input data.
+        target_class (Tuple, optional): Class instances that should be removed from the data. Defaults to ().
+        precision (int, optional): Number of decimals for floats.
+
+    Returns:
+        Dict | List | np.ndarray | Any: Input data, just without the target classes and lists instead arrays.
+    """
+    if isinstance(data, dict):
+        return {key: serialize_json(value, target_class) for key, value in data.items() if not isinstance(value, target_class)}
+    elif isinstance(data, list):
+        return [serialize_json(item, target_class) for item in data]
+    elif isinstance(data, np.ndarray):
+        return np.round( data, precision ).tolist()
+    elif isinstance(data, float):
+        return round( data, precision)
+    else:
+        return data
+
 def work_json(file_path: str, data: Dict={}, to_do: str="read", indent: int=2):
     """
     Function to work with json files
@@ -145,3 +168,34 @@ def work_json(file_path: str, data: Dict={}, to_do: str="read", indent: int=2):
         
     else:
         raise KeyError("Wrong task defined: %s"%to_do)
+    
+
+from .free_energy_objects import MixtureComponent
+def create_database( mixture_components: List[MixtureComponent], key: str, json_save_path: str ):
+    """
+    Function that takes a list of mixture component objects and drop there free energy objects as json. This can be used as low fidelity database, or just as datastorage.
+
+    Args:
+        mixture_components (List[MixtureComponent]): Mixture component objects.
+        key (str): Key of free energy portion. vdw or coulomb.
+        json_save_path (str): Path for the corresponding json faile
+    """
+    # Dump the mixture components as json.
+    results = { mix_comp.component: mix_comp.free_energy_object[key].model_dump() for mix_comp in mixture_components  if key in mix_comp.free_energy_object.keys()}
+
+    # If key is not found in both mixture components, nothing to do. 
+    if not bool(results): 
+        return
+
+    mixture_key = "_".join( results.keys() )
+
+    if np.unique( np.round( mixture_components[0].temperature, 3 ) ).size == 1:
+        unique_key = int( np.unique( np.round( mixture_components[0].temperature, 0 ) )[0] )
+    else:
+        unique_key = int( np.unique( np.round( mixture_components[0].equilibrium_pressure, 0 ) )[0] )
+
+    database = { mixture_key: { unique_key: results } }
+
+    work_json( json_save_path, database, to_do="append" ) 
+    
+    return

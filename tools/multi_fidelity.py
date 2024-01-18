@@ -1,13 +1,14 @@
 import GPy
-import numpy as np
 import emukit
+import numpy as np
 import matplotlib.pyplot as plt
-from emukit.model_wrappers.gpy_model_wrappers import GPyMultiOutputWrapper
-from emukit.multi_fidelity.models import GPyLinearMultiFidelityModel
-from emukit.multi_fidelity.convert_lists_to_array import convert_x_list_to_array
+from typing import List, Tuple
 from matplotlib.ticker import AutoMinorLocator
 from .general_utils import plot_data, work_json
-from typing import List, Tuple
+from emukit.multi_fidelity.models import GPyLinearMultiFidelityModel
+from emukit.model_wrappers.gpy_model_wrappers import GPyMultiOutputWrapper
+from emukit.multi_fidelity.convert_lists_to_array import convert_x_list_to_array
+
 
 class MF():
     
@@ -233,7 +234,7 @@ class MF():
 
 def get_lf_training_data(lf_databank: str, lf_mixture: str, lf_unique_key: str, lf_component: str) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
     """
-    Function that accquieres low fidelity training data from given databank (json file). This is especially designed to read out the 
+    Function that acquires low fidelity training data from given databank (json file). This is especially designed to read out the 
     derivative of the coupling work requiered to insert a molecule of component i into a mixture of i and j.
 
     Args:
@@ -243,18 +244,19 @@ def get_lf_training_data(lf_databank: str, lf_mixture: str, lf_unique_key: str, 
         lf_component (str): Component which should be used as low fidelity model.
 
     Returns:
-        l_learn (List[np.ndarray]): List containing lambda intermediates for every composition
-        xi_learn (List[np.ndarray]): List containing composition intermediates for every composition
+        lambda_learn (List[np.ndarray]): List containing lambda intermediates for every composition
+        composition_learn (List[np.ndarray]): List containing composition intermediates for every composition
         dh_dl_learn (List[np.ndarray]): List containing derivative of the coupling work for every composition
     """
 
-    lf_dict     = work_json(lf_databank,to_do="read")
+    lf_dict           = work_json(lf_databank,to_do="read")
 
-    l_learn     = [ np.array(item[1]["lambda"]) for item in lf_dict[lf_mixture][lf_unique_key][lf_component].items() ] 
-    xi_learn    = [ np.ones(len(lf_dict[lf_mixture][lf_unique_key][lf_component][xi]["lambda"]))*float(xi) for i,xi in enumerate(lf_dict[lf_mixture][lf_unique_key][lf_component].keys()) ] 
-    dh_dl_learn = [ np.array(item[1]["du_dl"]) for item in lf_dict[lf_mixture][lf_unique_key][lf_component].items() ] 
+    lambda_learn      = [ np.array(item) for item in lf_dict[lf_mixture][lf_unique_key][lf_component]["lambdas"] ]
+    composition_learn = [ np.array(item) for item in lf_dict[lf_mixture][lf_unique_key][lf_component]["compositions"] ]
+    dh_dl_learn       = [ np.array(item) for item in lf_dict[lf_mixture][lf_unique_key][lf_component]["dh_dl"] ]
     
-    return l_learn, xi_learn, dh_dl_learn
+    return lambda_learn, composition_learn, dh_dl_learn
+
 
 def prep_mf_input(hf,lf,dimension):
     """

@@ -1,8 +1,107 @@
 import numpy as np
-from typing import List, Dict
+from rdkit import Chem
 from moleculegraph import molecule
+from rdkit.Chem import Descriptors
+from typing import List, Tuple, Dict
+from feos.pcsaft import PcSaftParameters
+from feos.gc_pcsaft import IdentifierOption
+from feos.eos import EquationOfState, PhaseDiagram
+from feos.si import KELVIN, BAR, PASCAL, KILOGRAM, METER, ANGSTROM
 
 
+def get_initial_conditions(SAFT_parameter_file: str, molecule_smiles: List[str], compositions: List[float], temperature: float=None, pressure: float=None, 
+                           SAFT_binary_file: str="", n_eval_saft: int=51, verbose: bool=False) -> Tuple[List, List, List, List]:
+    """
+    Function that uses the feos implementation of the PC-SAFT equation of state to determine suitable starting temperatures, pressures and densities for any mixture.
+
+    Args:
+        SAFT_parameter_file (str): File containing the PC-SAFT parameters
+        molecule_smiles (List[str]): SMILES of each molecule in the mixture
+        compositions (List[float]): Compositions that should be extracted of this mixture
+        temperature (float, optional): Constant temperature of the mixture. If constant pressure should be used, temperature should equal None. Defaults to None.
+        pressure (float, optional): Constant pressure of the mixture. If constant temperature should be used, pressure should equal None. Defaults to None.
+        SAFT_binary_file (str, optional): File containing binary PC-SAFT parameters. Defaults to "".
+        n_eval_saft (int, optional): Evaluation steps of the PC-SAFT VLE object. Defaults to 51.
+        verbose (bool, optional): If the binary parameter should be printed out. Defaults to False.
+
+
+    Returns:
+        temperatures (List): Temperatures of the mixture at the specified compositions.
+        pressures (List): Pressures of the mixture at the specified compositions.
+        densities (List): Densities of the mixture at the specified compositions.
+        activity_coeff (List): Symmetric activity coefficients at the specified compositions. (For each composition it contains gamma_i and gamma_j)
+    """
+    
+    # Get SAFT paramters
+    if SAFT_binary_file:
+        parameters = PcSaftParameters.from_json( molecule_smiles, SAFT_parameter_file, SAFT_binary_file, search_option = IdentifierOption.Smiles )
+    else:
+        parameters = PcSaftParameters.from_json( molecule_smiles, SAFT_parameter_file, search_option = IdentifierOption.Smiles )
+
+    if verbose:
+        print("Binary parameter: k_ij = %f\n"%parameters.k_ij[0][1])
+
+    # Call the PC-SAFT equation of state class
+    eos = EquationOfState.pcsaft( parameters )
+
+    # Get a VLE of either constant temperature or pressure
+    key     = temperature * KELVIN if temperature else pressure * BAR
+    vle     = PhaseDiagram.binary_vle( eos = eos, temperature_or_pressure = key, npoints = n_eval_saft)
+
+    # Extract temperatures, pressures, and densities at the specified compositions
+    saft_compositions = [ np.round( state.liquid.molefracs[0], 3).tolist() for state in vle.states if np.isin(round(state.liquid.molefracs[0],3),compositions)] 
+    temperatures      = [ np.round( state.liquid.temperature / KELVIN, 3).tolist() for state in vle.states if np.isin(round(state.liquid.molefracs[0],3),compositions) ]
+    pressures         = [ np.round( state.liquid.pressure() / PASCAL * 1e-5, 3).tolist() for state in vle.states if np.isin(round(state.liquid.molefracs[0],3),compositions) ]
+    densities         = [ np.round( state.liquid.mass_density() / ( KILOGRAM / METER**3 ), 2).tolist() for state in vle.states if np.isin(round(state.liquid.molefracs[0],3),compositions) ]
+    activity_coeff    = [ np.round( np.exp(state.liquid.ln_symmetric_activity_coefficient()), 3).tolist()[0] for state in vle.states if np.isin(round(state.liquid.molefracs[0],3),compositions) ]
+
+    if not saft_compositions == compositions:
+        raise KeyError("Not all specified compositions are found in the VLE object. Increase the number of VLE evaluations!\n")
+    
+    return temperatures, pressures, densities, activity_coeff
+
+
+def create_composition_matrix(no_components: int, composition: List, precision: int=3) -> List[ List[ List ] ]:
+    """
+    Function that makes a compositon matrix for an arbitrary mixture.
+
+    Args:
+        no_components (int): Number of componets in the mixture.
+        composition (List): Composition that should be simulated for each pure component.
+        precision (int, optional): Number of decimals for rounding. Defaults to 3.
+
+    Returns:
+        composition_matrix List[ List[ List ] ]: Composition matrix. [ [x1=[0.0, ... 1.0], x2, x3, ...], [x1, x2=[0.0, ..., 1.0], x3, ... ], ... ]
+    """
+    # Create empty composition matrix
+    composition_matrix = [ [] for _ in range(no_components) ]
+
+    # Fill the diagonal with the original composition and off-diagonal with complementary composition
+    for i in range(no_components):
+        for j in range(no_components):
+            composition_matrix[i].append( np.round(composition,precision).tolist() if i == j else np.round(1 - np.array(composition), precision).tolist() )
+
+    return composition_matrix
+
+
+def calculate_molecular_weight(smiles: str):
+    """
+    Function that uses the SMILE to obtain the molecular weight.
+
+    Args:
+        smiles (str): SMILES of a molecule
+
+    Returns:
+        float: Molecular weight in g/mol
+    """
+    if "LJ" or "Mie" in smiles:
+        smiles = "[Ar]"
+    mol = Chem.MolFromSmiles(smiles)
+    if mol:
+        return Descriptors.MolWt(mol)
+    else:
+        return None
+    
 def write_decoupling_ff(mol_list: List[molecule], settings: Dict[str, str | List | Dict], atom_numbers_ges: List[int], nonbonded: List[Dict[str,str]],
                         free_energy_method:str, lambda_vdw: float, lambda_coulomb: float, dlambda: List[float], free_energy_output_files: List[str]  ):
     """

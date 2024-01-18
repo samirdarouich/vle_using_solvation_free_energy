@@ -69,6 +69,8 @@ def get_mixture_components( molecule_name_list: List[str], coupling_lambdas: Lis
             # Define type of coupled interaction
             coupling_key = "vdw" if j == 0 else "coulomb"
 
+            print(f"\nAcquire data for {coupling_key} contribution\n")
+
             # Define simulation path
             sim_path = f"{main_path}/{molecule_name}_coupled/x%.1f/{coupling_key}/{free_eng_method}/sim_%d/fep%d%d.sampling"
 
@@ -98,7 +100,7 @@ def get_mixture_components( molecule_name_list: List[str], coupling_lambdas: Lis
         mass_density         = interp1d( composition, np.mean(mass_density, axis=0), kind = interpolation_method )( x_pred )
 
         # Define the molecular weight of the mixture based on the composition
-        molecular_mass       = [ np.dot( Mol_masses, [ x, 1 - x ] if i == 0 else [ 1 - x, x ])  for x in composition ]
+        molecular_mass       = [ np.dot( Mol_masses, [ x, 1 - x ] if i == 0 else [ 1 - x, x ])  for x in x_pred ]
         
         # Save all data in the mixture component class
         settings_dict = { "component": molecule_name, "liquid_composition": x_pred, "temperature": temperature, "mass_density": mass_density,
@@ -147,11 +149,14 @@ def get_delta_G( free_eng_class: ThermodynamicIntegration | FreeEnergyPerturbati
     """
 
     if free_energy_method == "TI":
+        
+        # This dimension defines if the multifidelit or GPR approaches should be used 1D (Interpolate for each composition only the dh/dlambda curve) or
+        # if a 2D interpolation should be done, so dh/dlambda over lambda and over the composition. The 2D case avoids the need for polynomial fitting
+        # of the free solvation energies via the composition.
+        dimension = 2 if "2d" in free_eng_sub_style else 1
 
         if "multi_fidelity" in free_eng_sub_style:
-            
-            # Perform integration on 2D or 1D MF simulation data (first dimension: lambda, second dimension: composition)
-            dimension = 2 if "2d" in free_eng_sub_style else 1
+            # Perform integration on 2D or 1D multifidelity simulation data (first dimension: lambda, second dimension: composition)
 
             # Get low fidelity data and prepare mf data input
             settings_dict = {"lf_databank": lf_databank, "lf_mixture": lf_mixture, "lf_unique_key": lf_unique_key, "lf_component": lf_component }
@@ -171,13 +176,40 @@ def get_delta_G( free_eng_class: ThermodynamicIntegration | FreeEnergyPerturbati
             if dimension == 1: 
                 delta_G, delta_G_std = fit_poly( free_eng_class.compositions, delta_G, x_pred, deg=poly_degree, w=1/np.array(delta_G_var) )
                 delta_G_var          = delta_G_std**2
+
+        elif "gpr" in free_eng_sub_style:
+            # Perform integration on 2D or 1D GPR simulation data (first dimension: lambda, second dimension: composition)
+
+            # Prepare necessary input
+            settings_dict = { "component": component,"dimension": dimension, "x_pred": x_pred, 
+                              "lengthscale": lengthscale, "fix_lengthscale": fix_lengthscale,
+                              "fix_hf_noise": fix_hf_noise, "verbose": verbose}
+            
+            free_eng_class.gpr( **settings_dict  )
+
+            # Integrate the high fidelity data
+            delta_G, delta_G_var = free_eng_class.integrate( integration_method = integration_method )
+
+            # If 1d multi fidelity is performed, fit a polynomial to the delta G's 
+            if dimension == 1: 
+                delta_G, delta_G_std = fit_poly( free_eng_class.compositions, delta_G, x_pred, deg=poly_degree, w=1/np.array(delta_G_var) )
+                delta_G_var          = delta_G_std**2
+
         else:
             # Integrate the raw data and fit a polynomial to it to match it to the predicted compositon
             delta_G, delta_G_var = free_eng_class.integrate( integration_method = integration_method )
             delta_G, delta_G_std = fit_poly( np.unique( free_eng_class.compositions ), delta_G, x_pred, deg=poly_degree, w=1/np.array(delta_G_var) )
             delta_G_var          = delta_G_std**2
             
-
+        if verbose:
+            if dimension == 2:
+                settings_dict = { "plot_3d":True, "labels": ["x$_\mathrm{%s}$"%component,
+                                                              "$\lambda$", 
+                                                              "$ \\langle \\frac{\partial U}{\partial \lambda} \\rangle_{\lambda} \ / \ (k_\mathrm{B}T)$"]  }
+            else:
+                settings_dict = {}
+            free_eng_class.plot( **settings_dict )
+    
     return delta_G, delta_G_var
 
 
