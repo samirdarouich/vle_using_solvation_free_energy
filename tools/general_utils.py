@@ -168,34 +168,3 @@ def work_json(file_path: str, data: Dict={}, to_do: str="read", indent: int=2):
         
     else:
         raise KeyError("Wrong task defined: %s"%to_do)
-    
-
-from .free_energy_objects import MixtureComponent
-def create_database( mixture_components: List[MixtureComponent], key: str, json_save_path: str ):
-    """
-    Function that takes a list of mixture component objects and drop there free energy objects as json. This can be used as low fidelity database, or just as datastorage.
-
-    Args:
-        mixture_components (List[MixtureComponent]): Mixture component objects.
-        key (str): Key of free energy portion. vdw or coulomb.
-        json_save_path (str): Path for the corresponding json faile
-    """
-    # Dump the mixture components as json.
-    results = { mix_comp.component: mix_comp.free_energy_object[key].model_dump() for mix_comp in mixture_components  if key in mix_comp.free_energy_object.keys()}
-
-    # If key is not found in both mixture components, nothing to do. 
-    if not bool(results): 
-        return
-
-    mixture_key = "_".join( results.keys() )
-
-    if np.unique( np.round( mixture_components[0].temperature, 3 ) ).size == 1:
-        unique_key = int( np.unique( np.round( mixture_components[0].temperature, 0 ) )[0] )
-    else:
-        unique_key = int( np.unique( np.round( mixture_components[0].equilibrium_pressure, 0 ) )[0] )
-
-    database = { mixture_key: { unique_key: results } }
-
-    work_json( json_save_path, database, to_do="append" ) 
-    
-    return

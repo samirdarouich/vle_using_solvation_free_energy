@@ -5,7 +5,7 @@ from scipy.constants import R
 from typing import List, Dict, Tuple
 from matplotlib.ticker import AutoMinorLocator
 
-from .general_utils import plot_data, serialize_json
+from .general_utils import plot_data, serialize_json, work_json
 from .numeric_utils import cubic_integration, trapezoid_integration
 from .multi_fidelity import get_hf_prediction as get_hf_prediction_mf
 from .gaussian_process import get_hf_prediction as get_hf_prediction_gpr
@@ -362,3 +362,33 @@ class MixtureComponent:
         obj_dict = serialize_json( self.__dict__, target_class = ( ThermodynamicIntegration, FreeEnergyPerturbation ) )
             
         return obj_dict
+    
+
+def create_database( mixture_components: List[MixtureComponent], key: str, json_save_path: str ):
+    """
+    Function that takes a list of mixture component objects and drop there free energy objects as json. This can be used as low fidelity database, or just as datastorage.
+
+    Args:
+        mixture_components (List[MixtureComponent]): Mixture component objects.
+        key (str): Key of free energy portion. vdw or coulomb.
+        json_save_path (str): Path for the corresponding json faile
+    """
+    # Dump the mixture components as json.
+    results = { mix_comp.component: mix_comp.free_energy_object[key].model_dump() for mix_comp in mixture_components  if key in mix_comp.free_energy_object.keys()}
+
+    # If key is not found in both mixture components, nothing to do. 
+    if not bool(results): 
+        return
+
+    mixture_key = "_".join( results.keys() )
+
+    if np.unique( np.round( mixture_components[0].temperature, 3 ) ).size == 1:
+        unique_key = int( np.unique( np.round( mixture_components[0].temperature, 0 ) )[0] )
+    else:
+        unique_key = int( np.unique( np.round( mixture_components[0].equilibrium_pressure, 0 ) )[0] )
+
+    database = { mixture_key: { unique_key: results } }
+
+    work_json( json_save_path, database, to_do="append" ) 
+    
+    return

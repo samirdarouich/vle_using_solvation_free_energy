@@ -1,38 +1,33 @@
+from ast import With
 import GPy
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Tuple
+from sklearn.preprocessing import StandardScaler
 
 class GPR():
     
-    def __init__(self,X,Y,kernel=GPy.kern.Matern32,n_optimization_restarts=1) -> None:
-
-        axis,axis_inv = 0,-1
+    def __init__(self, X: np.ndarray, Y: np.ndarray, kernel: GPy.kern=GPy.kern.Matern32, n_optimization_restarts: int=1, norm_data: bool=False) -> None:
 
         ## Prepare input data ##
-
-        # Safe input data in class #
+        self.norm_data = norm_data
         self.X        = X
         self.Y        = Y
         
-        # Normalize data (frobenius norm for each input dimension) #
-        self.X_normer = np.linalg.norm(self.X,axis=axis)
-        self.Y_normer = np.linalg.norm(self.Y,axis=axis)       
-        
-        self.X_norm   = self.X/self.X_normer
-        self.Y_norm   = self.Y/self.Y_normer
-        
-        self.X_min    = np.min(self.X,axis=axis)
-        self.X_max    = np.max(self.X,axis=axis)
+        self.X_scaler = StandardScaler( with_mean=norm_data, with_std=norm_data ).fit(X)
+        self.X_norm   = self.norm_X( self.X )
 
         ## Setup Gaussian process regression model ##
 
-        self.dims     = self.X.shape[axis_inv]
+        self.dims     = self.X.shape[-1]
         kernels       = kernel(self.dims) if self.dims==1 else kernel(self.dims,ARD=True) 
 
-        self.model    = GPy.models.GPRegression( self.X_norm, self.Y_norm, kernels )
+        self.model    = GPy.models.GPRegression( self.X_norm, self.Y, kernels )
 
         self.nrestart = n_optimization_restarts
+
+    def norm_X(self, X):
+        return self.X_scaler.transform( X )
 
     def train(self):
         """
@@ -46,17 +41,16 @@ class GPR():
 
     def predict(self,x):
         """
-        Predicts un-normed results for a trained Gaussian process model
+        Predicts mean and variance for a trained Gaussian process model
         
-        x (2D array): (un-normed) evaluation locations, can be multi dimensional (by appending more columns )
+        x (2D array): (un-normed) Evaluation locations, can be multi dimensional (by appending more columns )
             
         returns mean predictions and corresponding variances as np.arrays
         """        
-        X  = x/self.X_normer
-
+        X  = self.norm_X(x)
         predict_mean, predict_var = self.model.predict(X)
 
-        return predict_mean*self.Y_normer, predict_var*self.Y_normer**2 
+        return predict_mean, predict_var
     
     def plot(self):
         return
