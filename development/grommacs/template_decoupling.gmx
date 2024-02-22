@@ -1,0 +1,110 @@
+#!/bin/bash
+#PBS -q short
+#PBS -l nodes=1:ppn=28
+#PBS -l walltime=10:00:00
+#PBS -N {{job_name}}
+#PBS -o {{log_path}}.o 
+#PBS -e {{log_path}}.e 
+#PBS -l mem=3000mb
+
+module purge
+module load chem/gromacs/2022.4
+
+# Define the main working path 
+FREE_ENERGY={{working_path}}
+
+echo "Free energy home directory set to $FREE_ENERGY"
+
+# Define which lambda intermediate is used in this simulation
+LAMBDA={{lambda_init}}
+
+# Define the names of each simulation step taken. The folder as well as the output files will be named like this
+{%- if em is defined %}
+EM={{em.name}}
+{%- endif %}
+{%- if nvt is defined %}
+NVT={{nvt.name}}
+{%- endif %}
+{%- if npt is defined %}
+NPT={{npt.name}}
+{%- endif %}
+{%- if prod is defined %}
+PROD={{prod.name}}
+{%- endif %}
+
+# Each intermediate step lambda has its own folder. Within each folder, there will be subfolders for minimization, equilibration, production
+cd $FREE_ENERGY
+
+{% if em is defined %}
+#################################
+# ENERGY MINIMIZATION 1: STEEP  #
+#################################
+echo "Starting minimization for lambda = $LAMBDA..." 
+
+mkdir -p $EM
+cd $EM
+
+# Iterative calls to grompp and mdrun to run the simulations
+
+gmx grompp {{em.grompp}}
+
+gmx mdrun {{em.mdrun}}
+
+cd ../
+sleep 10
+{%- endif %}
+{%- if nvt is defined %}
+#####################
+# NVT EQUILIBRATION #
+#####################
+echo "Starting constant volume equilibration..."
+
+mkdir -p $NVT
+cd $NVT
+
+gmx grompp {{nvt.grompp}}
+
+gmx mdrun {{nvt.mdrun}}
+
+echo "Constant volume equilibration complete."
+
+cd ../
+sleep 10
+{%- endif %}
+{%- if npt is defined %}
+#####################
+# NPT EQUILIBRATION #
+#####################
+echo "Starting constant pressure equilibration..."
+
+mkdir -p $NPT
+cd $NPT
+
+gmx grompp {{npt.grompp}}
+
+gmx mdrun {{npt.mdrun}}
+
+echo "Constant pressure equilibration complete."
+
+cd ../
+sleep 10
+{%- endif %}
+{%- if prod is defined %}
+#################
+# PRODUCTION MD #
+#################
+echo "Starting production MD simulation..."
+
+mkdir -p $PROD
+cd $PROD
+
+gmx grompp {{prod.grompp}}
+
+gmx mdrun {{prod.mdrun}}
+
+echo "Production MD complete."
+
+{%- endif %}
+
+# End
+echo "Ending. Job completed for lambda = $LAMBDA"

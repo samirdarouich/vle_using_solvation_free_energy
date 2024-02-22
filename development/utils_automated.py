@@ -113,7 +113,7 @@ def estimate_variance( x, model, x_list, var_list, verbose=False ):
     return get_partial_uncertanty(x_l,var_l)
 
 
-def trackJobs(jobs, waittime=60):
+def trackJobs(jobs, waittime=10):
     while len(jobs) != 0:
         for jobid in jobs:
             x = subprocess.run(['qstat', jobid],capture_output=True,text=True)

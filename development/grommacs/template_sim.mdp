@@ -1,0 +1,91 @@
+{%- if ensemble.em is defined %}
+integrator               = steep
+emtol                    = 100.0
+emstep                   = 0.01
+nsteps                   = 50000
+nstlist                  = 1
+{%- else %}
+integrator               = md
+tinit                    = 0
+dt                       = {{time.dt}}
+comm_grps                = system
+nstcomm                  = {{time.comm}}
+nsteps                   = {{time.steps}}
+nstxout                  = {{time.trajectory}}
+nstvout                  = 0
+nstfout                  = 0
+nstenergy                = 0
+nstlog                   = {{time.log}}
+nstlist                  = 5
+{%- endif %}
+pbc                      = xyz
+;====================================
+;    non-bonded
+;====================================
+rlist                    = {{nb.cutoff_neighbor}}
+cutoff-scheme            = Verlet
+coulombtype              = {{nb.coulomb}}
+rcoulomb                 = {{nb.cutoff_coulomb}}
+pme_order                = 4
+vdwtype                  = cut-off
+rvdw                     = {{nb.cutoff_vdw}}
+DispCorr                 = enerPres
+{%- if ensemble.t is defined %}
+;====================================
+;     T-coupling:
+;====================================
+tcoupl                   = {{ensemble.t.tcoupl}}
+tc-grps                  = system
+tau_t                    = {{ensemble.t.tau_t}}
+ref_t                    = {{ensemble.t.ref_t}}
+{%- endif %}
+{%- if ensemble.p is defined %}
+;====================================
+;     P-coupling:
+;====================================
+Pcoupl                   = {{ensemble.p.pcoupl}}
+pcoupltype               = {{ensemble.p.pcoupltype}}
+tau_p                    = {{ensemble.p.tau_p}}
+ref_p                    = {{ensemble.p.ref_p}}
+compressibility          = {{ensemble.p.compressibility}}
+{%- endif %}
+{%- if ensemble.t is defined %}
+;====================================
+;  initial velocities
+;====================================
+{%- if restart == no %}
+gen_vel                  = yes
+gen_temp                 = {{ensemble.t.ref_t}} 
+gen_seed                 = {{seed}}
+{%- else %}
+continuation             = {{restart}}
+{%- endif %}
+{%- endif %}
+;====================================
+;     constraints
+;====================================
+constraints              = {{constraints.constraints}}
+lincs_order              = {{constraints.lincs_order}}
+lincs_iter               = {{constraints.lincs_iter}}
+{%- if free_energy is not none %}
+;====================================
+; Free energy control
+;====================================
+free_energy               = yes
+init_lambda_state         = {{free_energy.init_lambda_state}}
+delta_lambda              = 0
+calc_lambda_neighbors     = {{free_energy.calc_lambda_neighbors}}
+; Vectors of lambda specified here
+; init_lambda_state         {{free_energy.init_lambda_states}}
+vdw_lambdas               = {{free_energy.vdw_lambdas}}
+coul_lambdas              = {{free_energy.coul_lambdas}}
+; Options for the decoupling
+sc-alpha                  = {{free_energy.sc_alpha}}
+sc-power                  = {{free_energy.sc_power}}
+sc-r-power                = {{free_energy.sc_r_power}}
+sc-coul                   = no
+couple-moltype            = {{free_energy.couple_moltype}}
+couple-lambda0            = {{free_energy.couple_lambda0}}
+couple-lambda1            = {{free_energy.couple_lambda1}}
+nstdhdl                   = {{free_energy.nstdhdl}}
+{%- endif %}
