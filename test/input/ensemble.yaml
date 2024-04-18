@@ -1,0 +1,20 @@
+# Defintion of ensemble input to lammps
+
+em:
+  variables:
+    - temperature
+  command:
+    "thermo   10\nmin_style   cg\nminimize   1e-10 1e-10 10000 10000"
+
+nvt:
+  variables: 
+    - temperature
+  command:
+    fix int_nvt all nvt temp ${temperature} ${temperature} $(100.0*v_timestep) 
+
+npt:
+  variables: 
+    - temperature
+    - pressure
+  command:
+    fix int_npt all npt temp ${temperature} ${temperature} $(100.0*v_timestep) iso ${pressure} ${pressure} $(1000.0*v_timestep)

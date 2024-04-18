@@ -1,0 +1,120 @@
+# LAMMPS input file. Automaticly created by pyLAMMPS
+
+# Define general settings
+
+units real
+dimension 3
+boundary p p p
+atom_style full
+
+# Read system
+
+{% if restart_flag %}read_restart   {{data_file}}{% else %}read_data   {{data_file}}{%- endif %}
+
+# ============= SOLVATION FREE ENERGY SIMULATION USING COUPLING APPROACH =============
+
+# Define lambda state of current simulation
+
+variable init_lambda_state index {{init_lambda_state}} 
+
+# Include force field paramters
+
+include   {{force_field_file}}
+
+# Define the neighbor list settings
+
+neighbor 2.0 bin
+neigh_modify every 1 delay 0 check yes 
+
+# ============= INITIAL SYSTEM SETUP AND EQUILIBRATION =============
+
+# ------------- general ---------------
+
+variable  project             index       {{ensemble_name}}
+variable  timestep            equal       {{system.dt}}
+variable  run_time            equal       {{system.nsteps}}
+
+timestep  ${timestep}
+
+# ------------- set integration settings ---------------
+
+{% for var,val in ensemble.var_val %}
+variable {{var}}  equal {{val}}
+{%- endfor %}
+
+{%- if not restart_flag %}
+
+variable seed  equal {{seed}}       
+
+# ------------- generate velocities ---------------
+
+velocity        all create ${temperature} ${seed} rot yes dist gaussian
+{%- endif %}
+
+# ------------- time integration ---------------
+
+{{ensemble.command}}
+
+
+{%- if shake_dict.values()|map('length')|select('>', 0)|first %}
+
+# ------------- shake algorithm ---------------
+
+fix rigid all shake 0.001 100 0 {%- for s in shake_dict %}{%- if shake_dict[s]|length > 0%} {{s}} {{shake_dict[s]|join(' ')}} {%- endif %}{%- endfor %} 
+{%- endif %}
+
+# ============= VARIABLES ===============
+
+# ------------- output ---------------
+
+variable  sample_frequency    equal       {{sampling_time.frequency}}
+variable  sample_number       equal       {{sampling_time.number}}
+variable  to_file_every       equal       $(v_sample_frequency*v_sample_number)
+variable  to_screen_every     equal       $(v_to_file_every*10)
+      
+# ------------- values ---------------
+
+variable step equal step
+
+# ============= SAMPLING CONDITIONS ============= 
+
+thermo          ${to_screen_every}
+thermo_style    custom step temp press pe ke etotal enthalpy vol density 
+
+{% for sample_name, sample_set in sampling.items() %}
+
+# Sample: {{sample_name}}
+
+{%- if sample_set.variables|select|first %}
+
+# Define sample variables
+{% for var in sample_set.variables %}
+variable {{var.out}}  equal {{var.lammps}}
+{%- endfor %}
+{%- endif %}
+
+{%- if sample_set.verbatim|select|first %}
+
+# Define any further verbatim input
+{% for var in sample_set.verbatim %}
+{{var}}
+{%- endfor %}
+{%- endif %}
+
+{{sample_set.command}}
+
+
+{% endfor %}
+
+# ------------- free energy sampling ---------------
+
+include   {{fep_sampling_file}}
+
+
+# ============= RUN CONDITIONS =============
+
+run             ${run_time}
+
+# Write restart after successful simulation
+
+write_restart ${project}.restart

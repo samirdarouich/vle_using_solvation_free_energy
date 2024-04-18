@@ -1,0 +1,45 @@
+# General definitions of the system
+
+# Simulation folder (simulations will be saved in this folder + the system name)
+folder: /home/st/st_us-041610/st_ac137577/software/vle_using_solvation_free_energy/test
+
+# System name
+name: lj1_pure
+
+# Define the components
+molecules:
+  - name: lj1
+    graph: "[LJ1]"
+    smiles: "Ar"
+    number: 1000
+  #- name: lj2
+  #  graph: "[LJ2]"
+  #  smiles: "Ar"
+  #  number: 100
+
+# Define paths 
+paths:
+
+  # Force field toml
+  force_field_path: /home/st/st_us-041610/st_ac137577/software/vle_using_solvation_free_energy/test/input/forcefield_model_fluid.toml
+
+  # Template files
+  template:
+    xyz_file: /home/st/st_us-041610/st_ac137577/software/pyLAMMPS/templates/general/template_write.xyz
+    playmol_ff_file: /home/st/st_us-041610/st_ac137577/software/pyLAMMPS/templates/playmol/template_playmol.playmol
+    playmol_input_file: /home/st/st_us-041610/st_ac137577/software/pyLAMMPS/templates/playmol/template_playmol.mol
+    playmol_bash_file: /home/st/st_us-041610/st_ac137577/software/pyLAMMPS/templates/playmol/build_system_sbatch.sh
+    lammps_data_file: /home/st/st_us-041610/st_ac137577/software/pyLAMMPS/templates/lammps/template_lammps.data
+    lammps_input_file: /home/st/st_us-041610/st_ac137577/software/vle_using_solvation_free_energy/test/template_lammps_fep.in
+    lammps_ff_file: /home/st/st_us-041610/st_ac137577/software/vle_using_solvation_free_energy/test/template_lammps_fep.params
+    job_file: /home/st/st_us-041610/st_ac137577/software/pyLAMMPS/templates/bash/template_job_sbatch.sh
+
+# Define the temperature (K), pressure (bar) and density (estimate, kg/m3) for each system that should be studied
+temperature:
+  - 89.88
+
+pressure:
+  - 7.84
+
+density:
+  - 1174

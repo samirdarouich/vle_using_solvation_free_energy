@@ -1,0 +1,90 @@
+## LAMMPS force field file. Automaticly created by pyLAMMPS
+
+# Pair style
+
+pair_style  {{pair_style}}
+pair_modify  mix {{mixing}}  tail {{tail}}
+{%- if charged %}
+kspace_style  {{kspace_style}}{%- endif %}
+
+# Define special bonds to scale 1-2, 1-3, or 1-4 vdW / Coulomb pair interactions
+
+special_bonds lj {{special_bonds.vdw|join(' ')}}  coul {{special_bonds.coulomb|join(' ')}}
+
+# Define free energy coupling lambdas
+
+variable vdw_lambdas vector [{{vdw_lambdas|join(',')}}]
+variable coul_lambdas vector [{{coul_lambdas|join(',')}}]
+
+# Define state of current simulation window
+
+variable init_vdw_lambda equal v_vdw_lambdas[v_init_lambda_state]
+variable init_coul_lambda equal v_coul_lambdas[v_init_lambda_state]
+variable init_scaling_lambda equal $((1-v_init_coul_lambda^2)/v_init_coul_lambda^2)
+
+# Van der Waals interactions
+
+# Interactions of solute with solute
+{% for p in vdw_interactions.solute_solute %}
+pair_coeff  {{p|join(' ')}}
+{%- endfor %}
+
+# Interactions of solution with solution
+{% for p in vdw_interactions.solution_solution %}
+pair_coeff  {{p|join(' ')}}
+{%- endfor %}
+
+# Scaled cross interactions between solute and solution
+{% for p in vdw_interactions.solute_solution %}
+pair_coeff  {{p|join(' ')}}
+{%- endfor %}
+
+{%- if charged %}
+
+# Coulomb interactions
+{% for p in coulomb_interactions.all %}
+pair_coeff  {{p|join(' ')}}
+{%- endfor %}
+
+# Prevent scaling of intramolecular charge interaction for solute 
+{% for p in coulomb_interactions.solute_solute %}
+pair_coeff  {{p|join(' ')}}
+{%- endfor %}
+
+# Scale charges of solute
+{% for p in charge_list %}
+set type {{p[0]}} charge $({{p[1]}}*v_init_coul_lambda)
+{%- endfor %}
+
+{%- endif %}
+
+
+{%- if bond_paras|length > 0%}
+
+# Bonded interactions
+
+bond_style  {{bond_styles|join(' ')}}
+{% for p in bond_paras %}
+bond_coeff  {{p|join(' ')}}
+{%- endfor %}
+{%- endif %}
+
+{%- if angle_paras|length > 0%}
+
+# Angle interactions
+
+angle_style  {{angle_styles|join(' ')}}
+{% for p in angle_paras %}
+angle_coeff  {{p|join(' ')}}
+{%- endfor %}
+{%- endif %}
+
+{%- if torsion_paras|length > 0%}
+
+# Dihedral interactions
+
+dihedral_style  {{torsion_styles|join(' ')}}
+{% for p in torsion_paras %}
+dihedral_coeff  {{p|join(' ')}}
+{%- endfor %}
+{%- endif %}

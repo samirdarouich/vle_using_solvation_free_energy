@@ -1,0 +1,29 @@
+
+# Define coupling potential
+potential:
+  vdw: "lj/cut/soft" #"mie/cut/soft"
+  coulomb: "coul/cut/soft"
+
+# Define parameters for soft core
+soft_core:
+  n_lambda_vdw: 2.0
+  n_lambda_coul: 1.0
+  alpha_sc_vdw: 0.5
+  alpha_sc_coul: 0.5
+
+# Define if coupling or decoupling should be performed
+# For coupling: lambdas between 0 and 1 are vdW, 1 to 2 are Coulomb. 
+# For decoupling: lambdas between 0 and 1 are Coulomb, 1 to 2 are vdW.
+coupling: true
+
+# Define the number of decimals for lambdas
+precision: 3
+
+# Define template for FEP sampling file
+template:
+  lammps_fep_sampling: /home/st/st_us-041610/st_ac137577/software/vle_using_solvation_free_energy/test/template_lammps_fep.sampling
+
+# Define sampling intervalls for FEP sampling fix
+sampling_time:
+  frequency: 20
+  number: 50

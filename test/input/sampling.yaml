@@ -1,0 +1,34 @@
+# Define all sampling command along with their variables
+
+sampling:
+  energy:
+    variables:
+      - lammps: pe
+        out: potential_energy
+      - lammps: ke
+        out: kinetic_energy
+      - lammps: enthalpy
+        out: enthalpy
+      
+    verbatim:
+      - ""
+
+    command:
+      "fix energy all ave/time ${sample_frequency} ${sample_number} ${to_file_every} &\n
+      c_thermo_temp v_potential_energy v_kinetic_energy v_enthalpy &\n
+      title2 '# step (fs), temperature (K), potential energy (kcal/mol), kinetic energy (kcal/mol), enthalpy (kcal/mol)' &\n
+      file ${project}.energy"
+    
+  density:
+    variables:
+      - lammps: density
+        out: density
+    
+    verbatim:
+      - ""
+
+    command:
+      "fix density all ave/time ${sample_frequency} ${sample_number} ${to_file_every} &\n
+      c_thermo_temp v_density   &\n
+      title2 '# step (fs), temperature (K), density (g/cm^3)' &\n
+      file ${project}.density"

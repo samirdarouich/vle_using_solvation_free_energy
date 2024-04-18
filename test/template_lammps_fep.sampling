@@ -1,0 +1,82 @@
+### Free energy pertubation to compute solvation free energies ###
+
+# Define the differences to all other intermediate states
+
+variable i loop {{no_intermediates}}
+label LOOP_START
+
+  # Get difference to all other indermediates
+  variable delta_vdw_lambda_$i equal v_vdw_lambdas[$i]-v_init_vdw_lambda
+  {%- if charged %}
+  variable delta_coul_lambda_$i equal v_coul_lambdas[$i]-v_init_coul_lambda
+
+  # For charges multiply by the partial charge
+  {%- for p in charge_list %}
+  variable delta_q{{p[0]}}_$i  equal {{p[1]}}*v_delta_coul_lambda_$i
+  {%- endfor %}
+
+  # Get difference in intramolecular charge scaling to all others
+  variable delta_overlay_lambda_$i equal (1-v_coul_lambdas[$i]^2)/v_coul_lambdas[$i]^2-v_init_overlay_lambda
+  {%- endif %}
+
+  # Setup compute for energy difference 
+  compute FEP$i${init_lambda_state} all fep ${temperature} &
+    pair {{potential.vdw}} lambda {{charge_list[0][0]}}*{{charge_list[-1][0]}} {{charge_list[-1][0]+1}}* v_delta_vdw_lambda_$i &
+    {%- if charged %}
+    pair {{potential.coulomb}} lambda {{charge_list[0][0]}}*{{charge_list[-1][0]}} {{charge_list[0][0]}}*{{charge_list[-1][0]}} v_delta_overlay_lambda_$i &
+    {%- for p in charge_list %}
+    atom charge {{p[0]}} v_delta_q{{p[0]}}_$i &
+    {%- endfor %}
+    {%- endif %}
+    tail yes &
+    volume yes
+
+
+  if "${i} == {{no_intermediates}}" then "jump SELF END_LOOP"
+  next i
+jump SELF LOOP_START
+label END_LOOP
+
+# Define infitesimal difference to compute gradient for TI
+
+variable delta_vdw_lambda equal 0.001
+{%- if charged %}
+variable delta_coul_lambda equal 0.001
+
+# For charges multiply by the partial charge
+{%- for p in charge_list %}
+variable delta_q{{p[0]}}  equal {{p[1]}}*v_delta_coul_lambda
+{%- endfor %}
+
+# Get difference in intramolecular charge scaling to all others
+variable temp equal $(v_init_coul_lambda+v_delta_coul_lambda)
+variable delta_overlay_lambda equal $((1-v_temp^2)/v_temp^2-v_init_overlay_lambda)
+{%- endif %}
+
+# Setup compute for energy difference 
+compute VDW_TI all fep ${temperature} &
+  pair {{potential.vdw}} lambda {{charge_list[0][0]}}*{{charge_list[-1][0]}} {{charge_list[-1][0]+1}}* v_delta_vdw_lambda &
+  tail yes &
+  volume yes
+{% if charged %}
+compute COUL_TI all fep ${temperature} &
+  pair {{potential.coulomb}} lambda {{charge_list[0][0]}}*{{charge_list[-1][0]}} {{charge_list[0][0]}}*{{charge_list[-1][0]}} v_delta_overlay_lambda &
+  {%- for p in charge_list %}
+  atom charge {{p[0]}} v_delta_q{{p[0]}} &
+  {%- endfor %}
+  volume yes
+{%- endif %}
+
+variable vdw_ti equal c_VDW_TI[1]/v_delta_vdw_lambda
+variable coul_ti equal {% if charged %}c_COUL_TI[1]/v_delta_coul_lambda{% else %}0.0{%- endif %}
+
+# Sample pV term to correct from u to h: h = u + pV. (atm in Pa, A^3 in m^3 and times NA to get per mol)
+variable pv equal press*101325*vol*1e-30*6.02214076e23
+
+fix FEP all ave/time {{sampling_time.frequency}} {{sampling_time.number}} {{sampling_time.frequency*sampling_time.number}} &
+    v_vdw_ti v_coul_ti &
+    {% for i in range(no_intermediates)%}c_FEP{{i+1}}{{init_lambda_state}}[1] {% endfor %} &
+    v_pv &
+    title1 '# TI and FEP results for lambda state: vdw-lambda = {{current_lambda_state[0]}}, coul-lambda = {{current_lambda_state[1]}}' &
+    title2 '# Time (fs), dU/dl_{vdw} (kcal/mol), dU/dl_{coul} (kcal/mol),{% for ls in lambda_states%} \Delta U to [{{ls|join(' ')}}] (kcal/mol),{% endfor %} pv (kcal/mol)' &
+    file ${project}.fep

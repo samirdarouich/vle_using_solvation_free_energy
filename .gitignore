@@ -15,3 +15,6 @@ old/
 
 # Ignore simulation folder
 simulation_systems/
+
+test/eoh_wat
+test/lj1_pure
