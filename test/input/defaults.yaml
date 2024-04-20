@@ -35,14 +35,14 @@ nonbonded:
     coulomb: [ 0, 0, 0.8333 ]
 
 # Define constraints based on the force field types
-# For atoms provide a list with constrainted force field type
-# Fot bonds/angles provide a list with sublists. Each sublist has the keys of the atoms in the bond/angle.
+# For atoms/bonds/angles provide a list with sublists. 
+# These sublist do contain the keys of the atoms in atom/bond/angle
 # E.g constrain tip3p water
-# atoms: [ cH_tip3p ]
+# atoms: [ [cH_tip3p] ]
 # bonds: []
 # angles: [ [cH_tip3p,OH_tip3p,cH_tip3p] ]
 shake_dict: 
-  atoms: [ cH_alcohol, cH_alkane, cH_alkane, cH_tip3p ]
+  atoms: [ [cH_alcohol], [cH_alkane], [cH_CH2alcohol], [cH_tip3p] ]
   bonds: []
   angles: [ [cH_tip3p,OH_tip3p,cH_tip3p] ]
 

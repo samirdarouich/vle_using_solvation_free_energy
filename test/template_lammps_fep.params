@@ -11,6 +11,13 @@ kspace_style  {{kspace_style}}{%- endif %}
 
 special_bonds lj {{special_bonds.vdw|join(' ')}}  coul {{special_bonds.coulomb|join(' ')}}
 
+{%- if shake_dict.values()|map('length')|select('>', 0)|first %}
+
+# Define constraint atoms, bonds and angles using the SHAKE algorithm
+
+fix rigid all shake 0.001 100 0 {%- for s in shake_dict %}{%- if shake_dict[s]|length > 0%} {{s}} {{shake_dict[s]|join(' ')}} {%- endif %}{%- endfor %} 
+{%- endif %}
+
 # Define free energy coupling lambdas
 
 variable vdw_lambdas vector [{{vdw_lambdas|join(',')}}]

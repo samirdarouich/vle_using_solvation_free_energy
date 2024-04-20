@@ -21,8 +21,9 @@ molecules:
 # Define paths 
 paths:
 
-  # Force field toml
-  force_field_path: /home/st/st_us-041610/st_ac137577/software/vle_using_solvation_free_energy/test/input/forcefield_GAFF_AA.toml
+  # Force field toml files
+  force_field_paths: 
+    - /home/st/st_us-041610/st_ac137577/software/vle_using_solvation_free_energy/test/input/forcefield_GAFF_AA.json
 
   # Template files
   template:

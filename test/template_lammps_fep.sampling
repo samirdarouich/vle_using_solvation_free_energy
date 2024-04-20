@@ -16,7 +16,7 @@ label LOOP_START
   {%- endfor %}
 
   # Get difference in intramolecular charge scaling to all others
-  variable delta_overlay_lambda_$i equal (1-v_coul_lambdas[$i]^2)/v_coul_lambdas[$i]^2-v_init_overlay_lambda
+  variable delta_overlay_lambda_$i equal (1-v_coul_lambdas[$i]^2)/v_coul_lambdas[$i]^2-v_init_scaling_lambda
   {%- endif %}
 
   # Setup compute for energy difference 
@@ -50,7 +50,7 @@ variable delta_q{{p[0]}}  equal {{p[1]}}*v_delta_coul_lambda
 
 # Get difference in intramolecular charge scaling to all others
 variable temp equal $(v_init_coul_lambda+v_delta_coul_lambda)
-variable delta_overlay_lambda equal $((1-v_temp^2)/v_temp^2-v_init_overlay_lambda)
+variable delta_overlay_lambda equal $((1-v_temp^2)/v_temp^2-v_init_scaling_lambda)
 {%- endif %}
 
 # Setup compute for energy difference 
